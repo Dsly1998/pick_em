@@ -28,7 +28,7 @@ var teamsByCode = map[string]Team{
 	"KC":  {Code: "KC", Name: "Chiefs", Location: "Kansas City"},
 	"LAC": {Code: "LAC", Name: "Chargers", Location: "Los Angeles"},
 	"LAR": {Code: "LAR", Name: "Rams", Location: "Los Angeles"},
-	"LVR": {Code: "LVR", Name: "Raiders", Location: "Las Vegas"},
+	"LV": {Code: "LV", Name: "Raiders", Location: "Las Vegas"},
 	"MIA": {Code: "MIA", Name: "Dolphins", Location: "Miami"},
 	"MIN": {Code: "MIN", Name: "Vikings", Location: "Minnesota"},
 	"NE":  {Code: "NE", Name: "Patriots", Location: "New England"},
