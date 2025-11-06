@@ -1,110 +1,197 @@
 <script lang="ts">
-import { goto } from '$app/navigation';
-import { clearPick, declareWeekWinner, syncWeek, upsertPick, upsertTieBreaker } from '$lib/api/client';
+	import { goto } from '$app/navigation';
+	import {
+		clearPick,
+		declareWeekWinner,
+		syncWeek,
+		upsertPick,
+		upsertTieBreaker
+	} from '$lib/api/client';
 	import type { PageData } from './$types';
 	import type { Game } from '$lib/types';
 
 	const props = $props();
 	const data = $derived(props.data as PageData);
 
-const seasons = $derived(data.seasons ?? []);
-const season = $derived(data.season ?? null);
-const weeks = $derived(data.weeks ?? []);
-const activeWeek = $derived(data.activeWeek ?? null);
-const members = $derived(data.members ?? []);
-const games = $derived(data.games ?? []);
-let gamesView = $state<Game[]>([]);
-const weekResult = $derived(data.weekResult ?? null);
+	const seasons = $derived(data.seasons ?? []);
+	const season = $derived(data.season ?? null);
+	const weeks = $derived(data.weeks ?? []);
+	const activeWeek = $derived(data.activeWeek ?? null);
+	const members = $derived(data.members ?? []);
+	const games = $derived(data.games ?? []);
+	let gamesView = $state<Game[]>([]);
+	const weekResult = $derived(data.weekResult ?? null);
 
-const commissionerName = 'Brad';
-const commissioner = $derived(members.find((member) => member.isCommissioner) ?? null);
+	const commissionerName = 'Brad';
+	const commissioner = $derived(members.find((member) => member.isCommissioner) ?? null);
 
-	let selectedSeasonId = $state('');
-	let selectedWeekValue = $state('');
-	let selectedMemberId = $state('');
-	let selections = $state({} as Record<string, Record<string, 'home' | 'away'>>);
-	let tieBreakerInputs = $state({} as Record<string, Record<number, string>>);
-	let tieBreakerSaving = $state(false);
-	let declareSaving = $state(false);
-	let syncSaving = $state(false);
-	let winnerMemberId = $state('');
-	let winnerNotes = $state('');
+	const STORAGE_SEASON_KEY = 'bdp:selectedSeason';
+	const STORAGE_WEEK_KEY = 'bdp:selectedWeek';
+	const STORAGE_MEMBER_KEY = 'bdp:selectedMember';
+
+	const initialSeasonId = data.selectedSeasonId ?? seasons[0]?.id ?? '';
+const initialWeekNumber = data.selectedWeekNumber ?? activeWeek?.number ?? weeks[0]?.number ?? 1;
+const initialMemberId = members[0]?.id ?? '';
+
+let selectedSeasonId = $state(initialSeasonId);
+let selectedWeekValue = $state(String(initialWeekNumber));
+let selectedMemberId = $state(initialMemberId);
+let selections = $state({} as Record<string, Record<string, 'home' | 'away'>>);
+let tieBreakerInputs = $state({} as Record<string, Record<number, string>>);
+let tieBreakerSaving = $state(false);
+let declareSaving = $state(false);
+let syncSaving = $state(false);
+let winnerMemberId = $state('');
+let winnerNotes = $state('');
+let restoredFromStorage = $state(false);
 
 $effect(() => {
-	selectedSeasonId = data.selectedSeasonId ?? seasons[0]?.id ?? '';
+	const nextSeason = data.selectedSeasonId ?? seasons[0]?.id ?? '';
+	const currentSeasonParam =
+		typeof window !== 'undefined'
+			? new URL(window.location.href).searchParams.get('season') ?? ''
+			: '';
+	if (currentSeasonParam && nextSeason && currentSeasonParam !== nextSeason) {
+		return;
+	}
+	if (nextSeason && nextSeason !== selectedSeasonId) {
+		selectedSeasonId = nextSeason;
+	}
 	const weekNumber = data.selectedWeekNumber ?? activeWeek?.number ?? weeks[0]?.number ?? 1;
-	selectedWeekValue = String(weekNumber);
-	selectedMemberId = members[0]?.id ?? '';
+	const nextWeekValue = String(weekNumber);
+	const currentWeekParam =
+		typeof window !== 'undefined'
+			? new URL(window.location.href).searchParams.get('week') ?? ''
+			: '';
+	if (currentWeekParam && nextWeekValue && currentWeekParam !== nextWeekValue) {
+		return;
+	}
+	if (nextWeekValue !== selectedWeekValue) {
+		selectedWeekValue = nextWeekValue;
+	}
+	if (!members.some((member) => member.id === selectedMemberId)) {
+		selectedMemberId = members[0]?.id ?? '';
+	}
 	selections = buildInitialSelections();
 	tieBreakerInputs = buildInitialTieBreakers();
 	winnerMemberId = weekResult?.winnerMemberId ?? '';
 	winnerNotes = weekResult?.notes ?? '';
 });
 
-$effect(() => {
-	gamesView = games.map((game) => ({
-		...game,
-		picks: (game.picks ?? []).map((pick) => ({
-			...pick,
-			status:
-				pick.status ??
-				determinePickStatus(
-					game,
-					(pick.chosenSide as 'home' | 'away') ?? 'home'
-				)
-		}))
-	}));
-});
+	$effect(() => {
+		gamesView = games.map((game) => ({
+			...game,
+			picks: (game.picks ?? []).map((pick) => ({
+				...pick,
+				status:
+					pick.status ?? determinePickStatus(game, (pick.chosenSide as 'home' | 'away') ?? 'home')
+			}))
+		}));
+	});
 
 	const selectedMember = $derived(
 		members.find((member) => member.id === selectedMemberId) ?? members[0] ?? null
 	);
 
-let selectedWeekNumber = $state(1);
-let currentTieBreaker = $state('');
-let familyGridColumns = $state('');
+	let selectedWeekNumber = $state(1);
+	let currentTieBreaker = $state('');
+	let familyGridColumns = $state('');
+
+	$effect(() => {
+		const parsed = Number.parseInt(selectedWeekValue, 10);
+		selectedWeekNumber =
+			!Number.isNaN(parsed) && parsed > 0 ? parsed : (activeWeek?.number ?? weeks[0]?.number ?? 1);
+	});
+
+	$effect(() => {
+		if (!selectedMember || !activeWeek) {
+			currentTieBreaker = '';
+			return;
+		}
+		currentTieBreaker = tieBreakerInputs[selectedMember.id]?.[activeWeek.number] ?? '';
+	});
+
+	$effect(() => {
+		const count = Math.max(members.length, 1);
+		familyGridColumns = `minmax(220px, 1.6fr) repeat(${count}, minmax(160px, 1fr))`;
+	});
 
 $effect(() => {
-	const parsed = Number.parseInt(selectedWeekValue, 10);
-	selectedWeekNumber = !Number.isNaN(parsed) && parsed > 0
-		? parsed
-		: activeWeek?.number ?? weeks[0]?.number ?? 1;
-});
-
-$effect(() => {
-	if (!selectedMember || !activeWeek) {
-		currentTieBreaker = '';
-		return;
+	if (typeof window === 'undefined' || !restoredFromStorage) return;
+	if (selectedSeasonId) {
+		window.localStorage.setItem(STORAGE_SEASON_KEY, selectedSeasonId);
 	}
-	currentTieBreaker = tieBreakerInputs[selectedMember.id]?.[activeWeek.number] ?? '';
+	if (selectedWeekValue) {
+		window.localStorage.setItem(STORAGE_WEEK_KEY, selectedWeekValue);
+	}
+	if (selectedMemberId) {
+		window.localStorage.setItem(STORAGE_MEMBER_KEY, selectedMemberId);
+	}
 });
 
 $effect(() => {
-	const count = Math.max(members.length, 1);
-	familyGridColumns = `minmax(220px, 1.6fr) repeat(${count}, minmax(160px, 1fr))`;
+	if (typeof window === 'undefined' || restoredFromStorage) return;
+	const url = new URL(window.location.href);
+	const hasSeasonParam = url.searchParams.has('season');
+	const hasWeekParam = url.searchParams.has('week');
+
+	const storedSeason = window.localStorage.getItem(STORAGE_SEASON_KEY);
+		const storedWeek = window.localStorage.getItem(STORAGE_WEEK_KEY);
+		const storedMember = window.localStorage.getItem(STORAGE_MEMBER_KEY);
+
+		let seasonToUse = selectedSeasonId;
+		let weekToUse = selectedWeekValue;
+		let shouldNavigate = false;
+
+		if (!hasSeasonParam && storedSeason && seasons.some((season) => season.id === storedSeason)) {
+			seasonToUse = storedSeason;
+			if (selectedSeasonId !== storedSeason) {
+				selectedSeasonId = storedSeason;
+			}
+			shouldNavigate = true;
+		}
+
+	if (!hasWeekParam && storedWeek) {
+		weekToUse = storedWeek;
+		if (selectedWeekValue !== storedWeek) {
+			selectedWeekValue = storedWeek;
+		}
+		shouldNavigate = true;
+	}
+
+	if (storedMember && members.some((member) => member.id === storedMember)) {
+		selectedMemberId = storedMember;
+	}
+
+	restoredFromStorage = true;
+
+	if (shouldNavigate) {
+		const parsed = Number.parseInt(weekToUse, 10);
+		navigate(seasonToUse, Number.isNaN(parsed) ? undefined : parsed);
+	}
 });
 
-const selectedMemberSummary = $derived(
-	selectedMember
-		? {
-				seasonRecord: selectedMember.seasonRecord,
-				lastWeekRecord: selectedMember.lastWeekRecord,
-				weeksWon: selectedMember.weeksWon
-			}
-		: null
-);
+	const selectedMemberSummary = $derived(
+		selectedMember
+			? {
+					seasonRecord: selectedMember.seasonRecord,
+					lastWeekRecord: selectedMember.lastWeekRecord,
+					weeksWon: selectedMember.weeksWon
+				}
+			: null
+	);
 
-const totalWins = $derived(members.reduce((acc, member) => acc + member.seasonRecord.wins, 0));
-const totalLosses = $derived(
-	members.reduce((acc, member) => acc + member.seasonRecord.losses, 0)
-);
-const finalGameCount = $derived(gamesView.filter((game) => game.status === 'final').length);
-const allPicks = $derived(gamesView.flatMap((game) => game.picks));
-const pendingPickCount = $derived(allPicks.filter((pick) => pick.status === 'pending').length);
-const correctPickCount = $derived(allPicks.filter((pick) => pick.status === 'correct').length);
-const incorrectPickCount = $derived(
-	allPicks.filter((pick) => pick.status === 'incorrect').length
-);
+	const totalWins = $derived(members.reduce((acc, member) => acc + member.seasonRecord.wins, 0));
+	const totalLosses = $derived(
+		members.reduce((acc, member) => acc + member.seasonRecord.losses, 0)
+	);
+	const finalGameCount = $derived(gamesView.filter((game) => game.status === 'final').length);
+	const allPicks = $derived(gamesView.flatMap((game) => game.picks));
+	const pendingPickCount = $derived(allPicks.filter((pick) => pick.status === 'pending').length);
+	const correctPickCount = $derived(allPicks.filter((pick) => pick.status === 'correct').length);
+	const incorrectPickCount = $derived(
+		allPicks.filter((pick) => pick.status === 'incorrect').length
+	);
 
 	function buildInitialSelections() {
 		const base: Record<string, Record<string, 'home' | 'away'>> = {};
@@ -132,23 +219,13 @@ const incorrectPickCount = $derived(
 		return base;
 	}
 
-function navigate(seasonId: string, weekNumber?: number) {
-	const params = new URLSearchParams();
-	params.set('season', seasonId);
-	if (weekNumber && Number.isFinite(weekNumber)) {
-		params.set('week', String(weekNumber));
-	}
-	goto(`?${params.toString()}`, { keepfocus: true, noscroll: true });
-	}
-
-	function handleSeasonChange(id: string) {
-		navigate(id);
-	}
-
-	function handleWeekChange(week: number) {
-		if (!selectedSeasonId) return;
-		selectedWeekValue = String(week);
-		navigate(selectedSeasonId, week);
+	function navigate(seasonId: string, weekNumber?: number) {
+		const params = new URLSearchParams();
+		params.set('season', seasonId);
+		if (weekNumber && Number.isFinite(weekNumber)) {
+			params.set('week', String(weekNumber));
+		}
+		goto(`?${params.toString()}`, { keepfocus: true, noscroll: true });
 	}
 
 	function handleTieBreakerInput(value: string) {
@@ -172,99 +249,99 @@ function navigate(seasonId: string, weekNumber?: number) {
 
 	function formattedDate(kickoff?: string | null) {
 		if (!kickoff) return 'TBD';
-	return new Date(kickoff).toLocaleString(undefined, {
-		weekday: 'short',
-		month: 'short',
-		day: 'numeric',
-		hour: 'numeric',
-		minute: '2-digit'
-	});
-}
-
-function teamLabel(game: Game, side: 'home' | 'away') {
-	const team = side === 'home' ? game.homeTeam : game.awayTeam;
-	if (!team) {
-		return side === 'home' ? 'Home Team' : 'Away Team';
+		return new Date(kickoff).toLocaleString(undefined, {
+			weekday: 'short',
+			month: 'short',
+			day: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit'
+		});
 	}
-	const parts = [team.location, team.name].filter((value) => !!value && value.trim().length > 0);
-	if (parts.length > 0) {
-		return parts.join(' ').trim();
-	}
-	if (team.code && team.code.trim().length > 0) {
-		return team.code.toUpperCase();
-	}
-	return team.name?.trim() ?? (side === 'home' ? 'Home Team' : 'Away Team');
-}
 
-function winnerTeamLabel(game: Game): string {
-	if (!game.winner) {
-		return '';
+	function teamLabel(game: Game, side: 'home' | 'away') {
+		const team = side === 'home' ? game.homeTeam : game.awayTeam;
+		if (!team) {
+			return side === 'home' ? 'Home Team' : 'Away Team';
+		}
+		const parts = [team.location, team.name].filter((value) => !!value && value.trim().length > 0);
+		if (parts.length > 0) {
+			return parts.join(' ').trim();
+		}
+		if (team.code && team.code.trim().length > 0) {
+			return team.code.toUpperCase();
+		}
+		return team.name?.trim() ?? (side === 'home' ? 'Home Team' : 'Away Team');
 	}
-	const side = game.winner === 'home' ? 'home' : 'away';
-	return teamLabel(game, side);
-}
 
-async function handlePick(gameKey: string, side: 'home' | 'away') {
-	if (!selectedMemberId || !season || !activeWeek) return;
-	const memberSelections = { ...(selections[selectedMemberId] ?? {}) };
-	const previous = memberSelections[gameKey] ?? null;
+	function winnerTeamLabel(game: Game): string {
+		if (!game.winner) {
+			return '';
+		}
+		const side = game.winner === 'home' ? 'home' : 'away';
+		return teamLabel(game, side);
+	}
 
-	// Clicking the same side again removes the pick.
-	if (previous === side) {
-		delete memberSelections[gameKey];
+	async function handlePick(gameKey: string, side: 'home' | 'away') {
+		if (!selectedMemberId || !season || !activeWeek) return;
+		const memberSelections = { ...(selections[selectedMemberId] ?? {}) };
+		const previous = memberSelections[gameKey] ?? null;
+
+		// Clicking the same side again removes the pick.
+		if (previous === side) {
+			delete memberSelections[gameKey];
+			selections = { ...selections, [selectedMemberId]: memberSelections };
+			try {
+				await clearPick(fetch, {
+					seasonId: season.id,
+					weekNumber: activeWeek.number,
+					memberId: selectedMemberId,
+					gameKey
+				});
+				applyLocalPick(gameKey, selectedMemberId, null);
+			} catch (error) {
+				if (previous) {
+					memberSelections[gameKey] = previous;
+				}
+				selections = { ...selections, [selectedMemberId]: memberSelections };
+				console.error(error);
+				alert('Unable to clear pick. Please try again.');
+			}
+			return;
+		}
+
+		memberSelections[gameKey] = side;
 		selections = { ...selections, [selectedMemberId]: memberSelections };
 		try {
-			await clearPick(fetch, {
+			const { pick } = await upsertPick(fetch, {
 				seasonId: season.id,
 				weekNumber: activeWeek.number,
 				memberId: selectedMemberId,
-				gameKey
+				gameKey,
+				side
 			});
-			applyLocalPick(gameKey, selectedMemberId, null);
+			if (pick) {
+				applyLocalPick(gameKey, selectedMemberId, {
+					memberId: pick.memberId,
+					chosenSide: pick.chosenSide as 'home' | 'away',
+					status: pick.status as 'pending' | 'correct' | 'incorrect'
+				});
+			} else {
+				applyLocalPick(gameKey, selectedMemberId, {
+					memberId: selectedMemberId,
+					chosenSide: side
+				});
+			}
 		} catch (error) {
 			if (previous) {
 				memberSelections[gameKey] = previous;
+			} else {
+				delete memberSelections[gameKey];
 			}
 			selections = { ...selections, [selectedMemberId]: memberSelections };
 			console.error(error);
-			alert('Unable to clear pick. Please try again.');
+			alert('Unable to save pick. Please try again.');
 		}
-		return;
 	}
-
-	memberSelections[gameKey] = side;
-	selections = { ...selections, [selectedMemberId]: memberSelections };
-	try {
-		const { pick } = await upsertPick(fetch, {
-			seasonId: season.id,
-			weekNumber: activeWeek.number,
-			memberId: selectedMemberId,
-			gameKey,
-			side
-		});
-		if (pick) {
-			applyLocalPick(gameKey, selectedMemberId, {
-				memberId: pick.memberId,
-				chosenSide: pick.chosenSide as 'home' | 'away',
-				status: pick.status as 'pending' | 'correct' | 'incorrect'
-			});
-		} else {
-			applyLocalPick(gameKey, selectedMemberId, {
-				memberId: selectedMemberId,
-				chosenSide: side
-			});
-		}
-	} catch (error) {
-		if (previous) {
-			memberSelections[gameKey] = previous;
-		} else {
-			delete memberSelections[gameKey];
-		}
-		selections = { ...selections, [selectedMemberId]: memberSelections };
-		console.error(error);
-		alert('Unable to save pick. Please try again.');
-	}
-}
 
 	async function saveTieBreaker() {
 		if (!selectedMember || !season || !activeWeek) return;
@@ -360,20 +437,20 @@ async function handlePick(gameKey: string, side: 'home' | 'away') {
 			'hover:bg-slate-800'
 		];
 
-	if (isActive) {
-		classes.push(
-			'border-emerald-400',
-			'bg-emerald-500/25',
-			'text-emerald-50',
-			'shadow-lg',
-			'shadow-emerald-600/30',
-			'ring-1',
-			'ring-emerald-300/60'
-		);
-	}
+		if (isActive) {
+			classes.push(
+				'border-emerald-400',
+				'bg-emerald-500/25',
+				'text-emerald-50',
+				'shadow-lg',
+				'shadow-emerald-600/30',
+				'ring-1',
+				'ring-emerald-300/60'
+			);
+		}
 
-	if (game.status === 'final') {
-		if (pickIsCorrect(game, side)) {
+		if (game.status === 'final') {
+			if (pickIsCorrect(game, side)) {
 				classes.push('border-emerald-400', 'bg-emerald-500/20', 'text-emerald-100');
 			} else if (game.winner) {
 				classes.push('border-rose-400/60', 'bg-rose-500/20', 'text-rose-100/90');
@@ -383,73 +460,80 @@ async function handlePick(gameKey: string, side: 'home' | 'away') {
 		return classes.join(' ');
 	}
 
-function cellClasses(game: Game, memberId: string, pick: Game['picks'][number] | null) {
-	const classes = [
-		'rounded-md',
-		'border',
-		'border-slate-700',
-		'bg-slate-900',
-		'p-3',
-		'leading-tight',
-		'text-sm',
-		'transition-colors'
-	];
+	function cellClasses(game: Game, memberId: string, pick: Game['picks'][number] | null) {
+		const classes = [
+			'rounded-md',
+			'border',
+			'border-slate-700',
+			'bg-slate-900',
+			'p-3',
+			'leading-tight',
+			'text-sm',
+			'transition-colors'
+		];
 
-	if (pick) {
-		classes.push('font-semibold');
-	}
-
-	if (pick?.status === 'correct') {
-		classes.push('bg-emerald-500/35', 'border-emerald-400', 'text-emerald-50');
-	} else if (pick?.status === 'incorrect') {
-		classes.push('bg-rose-500/35', 'border-rose-500/80', 'text-rose-50');
-	} else if (pick) {
-		classes.push('bg-emerald-500/18', 'border-emerald-400/60', 'text-emerald-100');
-	} else {
-		classes.push('text-slate-300');
-	}
-
-	if (memberId === selectedMemberId) {
-		classes.push('ring-1', 'ring-emerald-300/60');
-	}
-
-	return classes.join(' ');
-}
-
-function saveLabel(game: Game, side: 'home' | 'away') {
-	return teamLabel(game, side);
-}
-
-function determinePickStatus(game: Game, side: 'home' | 'away'): 'pending' | 'correct' | 'incorrect' {
-	if (game.status === 'final' && game.winner) {
-		return game.winner === side ? 'correct' : 'incorrect';
-	}
-	return 'pending';
-}
-
-function applyLocalPick(
-	gameKey: string,
-	memberId: string,
-	pick: { memberId: string; chosenSide: 'home' | 'away'; status?: 'pending' | 'correct' | 'incorrect' } | null
-) {
-	gamesView = gamesView.map((game) => {
-		if (game.gameKey !== gameKey) {
-			return game;
-		}
-		const next = { ...game };
-		const picks = next.picks.filter((entry) => entry.memberId !== memberId);
 		if (pick) {
-			const status = pick.status ?? determinePickStatus(next, pick.chosenSide);
-			picks.push({
-				memberId,
-				chosenSide: pick.chosenSide,
-				status
-			});
+			classes.push('font-semibold');
 		}
-		next.picks = picks;
-		return next;
-	});
-}
+
+		if (pick?.status === 'correct') {
+			classes.push('bg-emerald-500/35', 'border-emerald-400', 'text-emerald-50');
+		} else if (pick?.status === 'incorrect') {
+			classes.push('bg-rose-500/35', 'border-rose-500/80', 'text-rose-50');
+		} else if (pick) {
+			classes.push('bg-emerald-500/18', 'border-emerald-400/60', 'text-emerald-100');
+		} else {
+			classes.push('text-slate-300');
+		}
+
+		if (memberId === selectedMemberId) {
+			classes.push('ring-1', 'ring-emerald-300/60');
+		}
+
+		return classes.join(' ');
+	}
+
+	function saveLabel(game: Game, side: 'home' | 'away') {
+		return teamLabel(game, side);
+	}
+
+	function determinePickStatus(
+		game: Game,
+		side: 'home' | 'away'
+	): 'pending' | 'correct' | 'incorrect' {
+		if (game.status === 'final' && game.winner) {
+			return game.winner === side ? 'correct' : 'incorrect';
+		}
+		return 'pending';
+	}
+
+	function applyLocalPick(
+		gameKey: string,
+		memberId: string,
+		pick: {
+			memberId: string;
+			chosenSide: 'home' | 'away';
+			status?: 'pending' | 'correct' | 'incorrect';
+		} | null
+	) {
+		gamesView = gamesView.map((game) => {
+			if (game.gameKey !== gameKey) {
+				return game;
+			}
+			const next = { ...game };
+			const picks = next.picks.filter((entry) => entry.memberId !== memberId);
+			if (pick) {
+				const status = pick.status ?? determinePickStatus(next, pick.chosenSide);
+				picks.push({
+					memberId,
+					chosenSide: pick.chosenSide,
+					status
+				});
+			}
+			next.picks = picks;
+			return next;
+		});
+	}
 </script>
 
 {#if !season || !activeWeek}
@@ -475,37 +559,25 @@ function applyLocalPick(
 				</p>
 			</div>
 			<div class="flex flex-col gap-3 sm:w-[22rem]">
-				<label class="text-xs font-semibold tracking-wide text-slate-200 uppercase">
+				<div class="text-xs font-semibold tracking-wide text-slate-200 uppercase">
 					Season
-					<select
-						bind:value={selectedSeasonId}
-						class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400 focus:outline-none"
-						onchange={(event) => handleSeasonChange(event.currentTarget.value)}
-					>
-						{#each seasons as seasonOption (seasonOption.id)}
-							<option value={seasonOption.id}>{seasonOption.label} · {seasonOption.year}</option>
-						{/each}
-					</select>
-				</label>
-				<label class="text-xs font-semibold tracking-wide text-slate-200 uppercase">
+					<div class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white">
+						{season.label} · {season.year}
+					</div>
+				</div>
+				<div class="text-xs font-semibold tracking-wide text-slate-200 uppercase">
 					Week
-					<select
-						bind:value={selectedWeekValue}
-						class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400 focus:outline-none"
-						onchange={(event) => handleWeekChange(Number(event.currentTarget.value))}
-					>
-						{#each weeks as week (week.number)}
-							<option value={week.number}>{week.label}</option>
-						{/each}
-					</select>
-				</label>
+					<div class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white">
+						Week {selectedWeekNumber}
+					</div>
+				</div>
 				<label class="text-xs font-semibold tracking-wide text-slate-200 uppercase">
 					Active family member
 					<select
 						bind:value={selectedMemberId}
 						class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400 focus:outline-none"
 					>
-				{#each members as member (member.id)}
+						{#each members as member (member.id)}
 							<option value={member.id}>{member.name}</option>
 						{/each}
 					</select>
@@ -724,13 +796,22 @@ function applyLocalPick(
 				</h2>
 				<span class="text-xs tracking-wide text-slate-400 uppercase">{season.label}</span>
 			</div>
-			<div class="w-full overflow-x-auto rounded-2xl border border-slate-700 bg-slate-950/80 p-2 shadow-inner shadow-black/40">
-				<div class="inline-grid min-w-full gap-1" style={`grid-template-columns: ${familyGridColumns};`}>
-					<div class="px-3 py-2 text-xs font-semibold tracking-wide uppercase text-slate-100 bg-slate-800/90 rounded-md">
+			<div
+				class="w-full overflow-x-auto rounded-2xl border border-slate-700 bg-slate-950/80 p-2 shadow-inner shadow-black/40"
+			>
+				<div
+					class="inline-grid min-w-full gap-1"
+					style={`grid-template-columns: ${familyGridColumns};`}
+				>
+					<div
+						class="rounded-md bg-slate-800/90 px-3 py-2 text-xs font-semibold tracking-wide text-slate-100 uppercase"
+					>
 						Game
 					</div>
 					{#each members as member (member.id)}
-						<div class="px-3 py-2 text-xs font-semibold tracking-wide uppercase text-slate-100 bg-slate-800/90 rounded-md text-center">
+						<div
+							class="rounded-md bg-slate-800/90 px-3 py-2 text-center text-xs font-semibold tracking-wide text-slate-100 uppercase"
+						>
 							{member.name}
 						</div>
 					{/each}
@@ -741,7 +822,7 @@ function applyLocalPick(
 								{teamLabel(game, 'away')} <span class="text-emerald-300">@</span>
 								{teamLabel(game, 'home')}
 							</p>
-							<p class="text-[0.7rem] uppercase tracking-wide text-slate-400">
+							<p class="text-[0.7rem] tracking-wide text-slate-400 uppercase">
 								{#if game.status === 'final' && game.homeScore != null && game.awayScore != null}
 									Final {game.homeScore}-{game.awayScore}
 								{:else if game.status === 'in-progress'}
@@ -751,13 +832,13 @@ function applyLocalPick(
 								{/if}
 							</p>
 						</div>
-				{#each members as member (member.id)}
-					{@const memberPick = game.picks.find((entry) => entry.memberId === member.id) ?? null}
+						{#each members as member (member.id)}
+							{@const memberPick = game.picks.find((entry) => entry.memberId === member.id) ?? null}
 							<div class={cellClasses(game, member.id, memberPick)}>
 								<p class="text-sm font-semibold text-white">
 									{memberPick ? teamLabel(game, memberPick.chosenSide as 'home' | 'away') : '—'}
 								</p>
-								<p class="text-[0.65rem] uppercase tracking-wide">
+								<p class="text-[0.65rem] tracking-wide uppercase">
 									{#if memberPick}
 										{memberPick.status === 'correct'
 											? 'Win'

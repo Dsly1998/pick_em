@@ -1,5 +1,5 @@
 <script lang="ts">
-import { goto } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
 	import type { GamePick } from '$lib/types';
 	import { formatRecord } from '$lib/utils/records';
@@ -7,20 +7,22 @@ import { goto } from '$app/navigation';
 	const props = $props();
 	const data = $derived(props.data as PageData);
 
-	const seasons = $derived(data.seasons ?? []);
-	const season = $derived(data.season ?? null);
-	const weeks = $derived(data.weeks ?? []);
-	const activeWeek = $derived(data.activeWeek ?? null);
-	const members = $derived(data.members ?? []);
-	const games = $derived(data.games ?? []);
-	let selectedSeasonId = $state('');
-	let selectedWeekValue = $state('');
+const seasons = $derived(data.seasons ?? []);
+const season = $derived(data.season ?? null);
+const weeks = $derived(data.weeks ?? []);
+const activeWeek = $derived(data.activeWeek ?? null);
+const members = $derived(data.members ?? []);
+const games = $derived(data.games ?? []);
 
-	$effect(() => {
-		selectedSeasonId = data.selectedSeasonId ?? seasons[0]?.id ?? '';
-		const weekNumber = data.selectedWeekNumber ?? activeWeek?.number ?? weeks[0]?.number ?? 1;
-		selectedWeekValue = String(weekNumber);
-	});
+const STORAGE_SEASON_KEY = 'bdp:selectedSeason';
+const STORAGE_WEEK_KEY = 'bdp:selectedWeek';
+
+const initialSeasonId = data.selectedSeasonId ?? seasons[0]?.id ?? '';
+const initialWeekNumber = data.selectedWeekNumber ?? activeWeek?.number ?? weeks[0]?.number ?? 1;
+
+let selectedSeasonId = $state(initialSeasonId);
+let selectedWeekValue = $state(String(initialWeekNumber));
+let restoredFromStorage = $state(false);
 
 	const sortedMembers = $derived(
 		[...members].sort(
@@ -44,10 +46,10 @@ import { goto } from '$app/navigation';
 		allPicks.filter((pick) => pick.status === 'incorrect').length
 	);
 
-const commissionerName = 'Brad';
+	const commissionerName = 'Brad';
 
 let weekStatus = $state('Upcoming');
-let selectedWeekNumber = $state(1);
+let selectedWeekNumber = $state(initialWeekNumber);
 let picksPageHref = $state('/picks');
 let homeGridColumns = $state('');
 
@@ -56,18 +58,17 @@ $effect(() => {
 		weekStatus = 'In Progress';
 		return;
 	}
-	if (games.some((game) => game.status === 'final')) {
-		weekStatus = 'Final';
-		return;
-	}
-	weekStatus = 'Upcoming';
-});
+		if (games.some((game) => game.status === 'final')) {
+			weekStatus = 'Final';
+			return;
+		}
+		weekStatus = 'Upcoming';
+	});
 
 $effect(() => {
 	const parsed = Number.parseInt(selectedWeekValue, 10);
-	selectedWeekNumber = !Number.isNaN(parsed) && parsed > 0
-		? parsed
-		: activeWeek?.number ?? weeks[0]?.number ?? 1;
+	selectedWeekNumber =
+		!Number.isNaN(parsed) && parsed > 0 ? parsed : (activeWeek?.number ?? weeks[0]?.number ?? 1);
 });
 
 $effect(() => {
@@ -86,14 +87,61 @@ $effect(() => {
 	homeGridColumns = `minmax(220px, 1.6fr) repeat(${count}, minmax(160px, 1fr))`;
 });
 
-function navigate(seasonId: string, weekNumber?: number) {
-	const params = new URLSearchParams();
-	params.set('season', seasonId);
-	if (weekNumber && Number.isFinite(weekNumber)) {
-		params.set('week', String(weekNumber));
+$effect(() => {
+	if (typeof window === 'undefined' || restoredFromStorage) return;
+	const url = new URL(window.location.href);
+	const hasSeasonParam = url.searchParams.has('season');
+	const hasWeekParam = url.searchParams.has('week');
+
+	const storedSeason = window.localStorage.getItem(STORAGE_SEASON_KEY);
+	const storedWeek = window.localStorage.getItem(STORAGE_WEEK_KEY);
+
+	let seasonToUse = selectedSeasonId;
+	let weekToUse = selectedWeekValue;
+	let shouldNavigate = false;
+
+	if (!hasSeasonParam && storedSeason && seasons.some((season) => season.id === storedSeason)) {
+		seasonToUse = storedSeason;
+		if (selectedSeasonId !== storedSeason) {
+			selectedSeasonId = storedSeason;
+		}
+		shouldNavigate = true;
 	}
-	goto(`?${params.toString()}`, { keepfocus: true, noscroll: true });
-}
+
+	if (!hasWeekParam && storedWeek) {
+		weekToUse = storedWeek;
+		if (selectedWeekValue !== storedWeek) {
+			selectedWeekValue = storedWeek;
+		}
+		shouldNavigate = true;
+	}
+
+	restoredFromStorage = true;
+
+	if (shouldNavigate) {
+		const parsed = Number.parseInt(weekToUse, 10);
+		navigate(seasonToUse, Number.isNaN(parsed) ? undefined : parsed);
+	}
+});
+
+$effect(() => {
+	if (typeof window === 'undefined' || !restoredFromStorage) return;
+	if (selectedSeasonId) {
+		window.localStorage.setItem(STORAGE_SEASON_KEY, selectedSeasonId);
+	}
+	if (selectedWeekValue) {
+		window.localStorage.setItem(STORAGE_WEEK_KEY, selectedWeekValue);
+	}
+});
+
+	function navigate(seasonId: string, weekNumber?: number) {
+		const params = new URLSearchParams();
+		params.set('season', seasonId);
+		if (weekNumber && Number.isFinite(weekNumber)) {
+			params.set('week', String(weekNumber));
+		}
+		goto(`?${params.toString()}`, { keepfocus: true, noscroll: true });
+	}
 
 	function handleSeasonChange(id: string) {
 		navigate(id);
@@ -115,51 +163,51 @@ function navigate(seasonId: string, weekNumber?: number) {
 		});
 	}
 
-function teamLabel(game: GameType, side: 'home' | 'away') {
-	const team = side === 'home' ? game.homeTeam : game.awayTeam;
-	if (!team) {
-		return side === 'home' ? 'Home Team' : 'Away Team';
+	function teamLabel(game: GameType, side: 'home' | 'away') {
+		const team = side === 'home' ? game.homeTeam : game.awayTeam;
+		if (!team) {
+			return side === 'home' ? 'Home Team' : 'Away Team';
+		}
+		const parts = [team.location, team.name].filter((value) => !!value && value.trim().length > 0);
+		if (parts.length > 0) {
+			return parts.join(' ').trim();
+		}
+		if (team.code && team.code.trim().length > 0) {
+			return team.code.toUpperCase();
+		}
+		return team.name?.trim() ?? (side === 'home' ? 'Home Team' : 'Away Team');
 	}
-	const parts = [team.location, team.name].filter((value) => !!value && value.trim().length > 0);
-	if (parts.length > 0) {
-		return parts.join(' ').trim();
-	}
-	if (team.code && team.code.trim().length > 0) {
-		return team.code.toUpperCase();
-	}
-	return team.name?.trim() ?? (side === 'home' ? 'Home Team' : 'Away Team');
-}
 
-function winnerLabel(game: GameType) {
-	if (!game.winner) return null;
-	const side = game.winner === 'home' ? 'home' : 'away';
-	const team = side === 'home' ? game.homeTeam : game.awayTeam;
-	if (!team) {
-		return side === 'home' ? 'Home Team' : 'Away Team';
+	function winnerLabel(game: GameType) {
+		if (!game.winner) return null;
+		const side = game.winner === 'home' ? 'home' : 'away';
+		const team = side === 'home' ? game.homeTeam : game.awayTeam;
+		if (!team) {
+			return side === 'home' ? 'Home Team' : 'Away Team';
+		}
+		return team.name ?? (side === 'home' ? 'Home Team' : 'Away Team');
 	}
-	return team.name ?? (side === 'home' ? 'Home Team' : 'Away Team');
-}
 
-function cellClasses(game: GameType, pick?: GamePick | null) {
-	const classes = [
-		'rounded-xl',
-		'border',
-		'border-slate-700/60',
-		'bg-slate-900/80',
-		'p-3',
-		'text-sm',
-		'text-slate-100',
-		'shadow-sm'
-	];
+	function cellClasses(game: GameType, pick?: GamePick | null) {
+		const classes = [
+			'rounded-xl',
+			'border',
+			'border-slate-700/60',
+			'bg-slate-900/80',
+			'p-3',
+			'text-sm',
+			'text-slate-100',
+			'shadow-sm'
+		];
 
-	if (pick) {
-		classes.push(
-			'border-emerald-400/60',
-			'bg-emerald-500/18',
-			'text-emerald-50',
-			'shadow-emerald-500/30'
-		);
-	}
+		if (pick) {
+			classes.push(
+				'border-emerald-400/60',
+				'bg-emerald-500/18',
+				'text-emerald-50',
+				'shadow-emerald-500/30'
+			);
+		}
 
 		if (pick && game.status === 'final' && game.winner) {
 			if (game.winner === pick.chosenSide) {
@@ -216,7 +264,12 @@ function cellClasses(game: GameType, pick?: GamePick | null) {
 						onchange={(event) => handleWeekChange(Number(event.currentTarget.value))}
 					>
 						{#each weeks as weekOption (weekOption.number)}
-							<option value={weekOption.number}>Week {weekOption.number}</option>
+							<option value={String(weekOption.number)}>
+								Week {weekOption.number}
+								{#if weekOption.label && weekOption.label !== `Week ${weekOption.number}`}
+									· {weekOption.label}
+								{/if}
+							</option>
 						{/each}
 					</select>
 				</label>
@@ -266,14 +319,16 @@ function cellClasses(game: GameType, pick?: GamePick | null) {
 					picks still open
 				</span>
 			</div>
-		<a
-			href={picksPageHref}
+			<a
+				href={picksPageHref}
 				class="inline-flex items-center rounded-full bg-emerald-500 px-6 py-2 text-sm font-semibold text-emerald-950 shadow-lg shadow-emerald-900/50 transition hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
 			>
 				Set Week {activeWeek.number} Picks
 			</a>
 		</div>
-		<div class="w-full overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80 p-2 shadow-inner shadow-black/40">
+		<div
+			class="w-full overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80 p-2 shadow-inner shadow-black/40"
+		>
 			<div
 				class="inline-grid min-w-full gap-2"
 				style={`grid-template-columns: ${homeGridColumns};`}
@@ -403,7 +458,7 @@ function cellClasses(game: GameType, pick?: GamePick | null) {
 				</li>
 			</ul>
 			<a
-			href={picksPageHref}
+				href={picksPageHref}
 				class="inline-flex w-full justify-center rounded-full border border-emerald-500/40 bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 shadow-lg shadow-emerald-900/50 transition hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
 			>
 				Jump to picks
@@ -437,7 +492,7 @@ function cellClasses(game: GameType, pick?: GamePick | null) {
 					</div>
 				</div>
 				<a
-				href={picksPageHref}
+					href={picksPageHref}
 					class="inline-flex w-full justify-center rounded-full border border-emerald-500/40 bg-emerald-500 px-3 py-2 text-sm font-semibold text-emerald-950 shadow hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
 				>
 					Update picks
@@ -518,9 +573,9 @@ function cellClasses(game: GameType, pick?: GamePick | null) {
 							</p>
 						{/if}
 					</div>
-							<p class="text-xs text-slate-400">{game.location ?? 'Venue TBD'}</p>
+					<p class="text-xs text-slate-400">{game.location ?? 'Venue TBD'}</p>
 				</div>
 			{/each}
 		</div>
-	</section>
+</section>
 {/if}
