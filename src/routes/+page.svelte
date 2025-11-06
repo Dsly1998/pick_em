@@ -49,6 +49,7 @@ const commissionerName = 'Brad';
 let weekStatus = $state('Upcoming');
 let selectedWeekNumber = $state(1);
 let picksPageHref = $state('/picks');
+let homeGridColumns = $state('');
 
 $effect(() => {
 	if (games.some((game) => game.status === 'in-progress')) {
@@ -80,6 +81,11 @@ $effect(() => {
 	picksPageHref = `/picks?${params.toString()}`;
 });
 
+$effect(() => {
+	const count = Math.max(members.length, 1);
+	homeGridColumns = `minmax(220px, 1.6fr) repeat(${count}, minmax(160px, 1fr))`;
+});
+
 function navigate(seasonId: string, weekNumber?: number) {
 	const params = new URLSearchParams();
 	params.set('season', seasonId);
@@ -109,12 +115,19 @@ function navigate(seasonId: string, weekNumber?: number) {
 		});
 	}
 
-	function teamLabel(game: GameType, side: 'home' | 'away') {
+function teamLabel(game: GameType, side: 'home' | 'away') {
 	const team = side === 'home' ? game.homeTeam : game.awayTeam;
 	if (!team) {
 		return side === 'home' ? 'Home Team' : 'Away Team';
 	}
-	return `${team.location ?? ''} ${team.name ?? ''}`.trim() || (side === 'home' ? 'Home Team' : 'Away Team');
+	const parts = [team.location, team.name].filter((value) => !!value && value.trim().length > 0);
+	if (parts.length > 0) {
+		return parts.join(' ').trim();
+	}
+	if (team.code && team.code.trim().length > 0) {
+		return team.code.toUpperCase();
+	}
+	return team.name?.trim() ?? (side === 'home' ? 'Home Team' : 'Away Team');
 }
 
 function winnerLabel(game: GameType) {
@@ -127,21 +140,26 @@ function winnerLabel(game: GameType) {
 	return team.name ?? (side === 'home' ? 'Home Team' : 'Away Team');
 }
 
-	function cellClasses(game: GameType, pick?: GamePick | null) {
-		const classes = [
-			'rounded-xl',
-			'border',
-			'border-slate-700/60',
-			'bg-slate-900/80',
-			'p-3',
-			'text-sm',
-			'text-slate-100',
-			'shadow-sm'
-		];
+function cellClasses(game: GameType, pick?: GamePick | null) {
+	const classes = [
+		'rounded-xl',
+		'border',
+		'border-slate-700/60',
+		'bg-slate-900/80',
+		'p-3',
+		'text-sm',
+		'text-slate-100',
+		'shadow-sm'
+	];
 
-		if (pick) {
-			classes.push('border-emerald-400/50', 'bg-emerald-600/15');
-		}
+	if (pick) {
+		classes.push(
+			'border-emerald-400/60',
+			'bg-emerald-500/18',
+			'text-emerald-50',
+			'shadow-emerald-500/30'
+		);
+	}
 
 		if (pick && game.status === 'final' && game.winner) {
 			if (game.winner === pick.chosenSide) {
@@ -255,12 +273,10 @@ function winnerLabel(game: GameType) {
 				Set Week {activeWeek.number} Picks
 			</a>
 		</div>
-		<div
-			class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80 p-2 shadow-inner shadow-black/40"
-		>
+		<div class="w-full overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80 p-2 shadow-inner shadow-black/40">
 			<div
-				class="grid min-w-[720px] gap-2"
-				style={`grid-template-columns: minmax(240px, 1.5fr) repeat(${members.length}, minmax(140px, 1fr));`}
+				class="inline-grid min-w-full gap-2"
+				style={`grid-template-columns: ${homeGridColumns};`}
 			>
 				<div class="px-3 py-2 text-xs font-semibold tracking-wide text-slate-300 uppercase">
 					Game

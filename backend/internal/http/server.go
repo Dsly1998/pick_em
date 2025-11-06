@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -44,7 +45,7 @@ func New(cfg config.Config, store *store.Store) *Server {
 	if len(cfg.AllowCORSOrigins) > 0 {
 		s.router.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   cfg.AllowCORSOrigins,
-			AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+			AllowedMethods:   []string{"GET", "POST", "DELETE", "OPTIONS"},
 			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 			ExposedHeaders:   []string{"Link"},
 			AllowCredentials: true,
@@ -53,7 +54,7 @@ func New(cfg config.Config, store *store.Store) *Server {
 	} else {
 		s.router.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   []string{"*"},
-			AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+			AllowedMethods:   []string{"GET", "POST", "DELETE", "OPTIONS"},
 			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 			ExposedHeaders:   []string{"Link"},
 			AllowCredentials: true,
@@ -77,6 +78,7 @@ func (s *Server) routes() {
 		r.Get("/seasons/{seasonID}/weeks", s.handleListSeasonWeeks)
 		r.Get("/seasons/{seasonID}/weeks/{weekNumber}", s.handleGetPageData)
 		r.Post("/seasons/{seasonID}/weeks/{weekNumber}/picks", s.handleUpsertPick)
+		r.Delete("/seasons/{seasonID}/weeks/{weekNumber}/picks", s.handleDeletePick)
 		r.Post("/seasons/{seasonID}/weeks/{weekNumber}/tie-breaker", s.handleUpsertTieBreaker)
 		r.Post("/seasons/{seasonID}/weeks/{weekNumber}/winner", s.handleDeclareWinner)
 		r.Post("/seasons/{seasonID}/weeks/{weekNumber}/sync", s.handleSyncWeek)
@@ -196,6 +198,54 @@ func (s *Server) handleUpsertPick(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"pick": pick})
+}
+
+func (s *Server) handleDeletePick(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	seasonID, weekNumber, err := parseSeasonWeekParams(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	if _, err := s.store.GetWeek(ctx, seasonID, weekNumber); err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, store.ErrSeasonNotFound) || errors.Is(err, store.ErrWeekNotFound) {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err)
+		return
+	}
+
+	var req deletePickRequest
+	if err := decodeJSON(r, &req); err != nil {
+		if !errors.Is(err, io.EOF) {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+	}
+
+	if req.MemberID == "" {
+		req.MemberID = r.URL.Query().Get("memberId")
+	}
+	if req.GameKey == "" {
+		req.GameKey = r.URL.Query().Get("gameKey")
+	}
+
+	req.MemberID = strings.TrimSpace(req.MemberID)
+	req.GameKey = strings.TrimSpace(req.GameKey)
+
+	if req.MemberID == "" || req.GameKey == "" {
+		writeError(w, http.StatusBadRequest, errors.New("memberId and gameKey are required"))
+		return
+	}
+
+	if err := s.store.DeletePick(ctx, req.MemberID, req.GameKey); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"removed": true})
 }
 
 func (s *Server) handleUpsertTieBreaker(w http.ResponseWriter, r *http.Request) {
@@ -412,4 +462,9 @@ type declareWinnerRequest struct {
 	WinnerMemberID     string `json:"winnerMemberId"`
 	DeclaredByMemberID string `json:"declaredByMemberId"`
 	Notes              string `json:"notes"`
+}
+
+type deletePickRequest struct {
+	MemberID string `json:"memberId"`
+	GameKey  string `json:"gameKey"`
 }

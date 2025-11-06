@@ -51,8 +51,8 @@ type Game struct {
 	Location  string     `json:"location"`
 	Status    string     `json:"status"`
 	Channel   string     `json:"channel,omitempty"`
-	HomeTeam  TeamInfo   `json:"home"`
-	AwayTeam  TeamInfo   `json:"away"`
+	HomeTeam  TeamInfo   `json:"homeTeam"`
+	AwayTeam  TeamInfo   `json:"awayTeam"`
 	HomeScore *int       `json:"homeScore,omitempty"`
 	AwayScore *int       `json:"awayScore,omitempty"`
 	Winner    string     `json:"winner,omitempty"`

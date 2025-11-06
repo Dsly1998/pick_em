@@ -549,6 +549,25 @@ func (s *Store) UpsertPick(ctx context.Context, memberID, gameKey, chosenSide st
 	return pick, nil
 }
 
+func (s *Store) DeletePick(ctx context.Context, memberID, gameKey string) error {
+	if strings.TrimSpace(memberID) == "" || strings.TrimSpace(gameKey) == "" {
+		return fmt.Errorf("store: delete pick requires member and game key")
+	}
+
+	_, err := s.pool.Exec(ctx, `
+		delete from picks p
+		using games g
+		where p.game_id = g.id
+			and p.member_id = $1
+			and g.game_key = $2
+	`, memberID, gameKey)
+	if err != nil {
+		return fmt.Errorf("store: delete pick: %w", err)
+	}
+
+	return nil
+}
+
 func pickStateFromStatus(gameStatus string, winner *string, chosenSide string) string {
 	if strings.EqualFold(gameStatus, "final") && winner != nil && *winner != "" {
 		if *winner == chosenSide {

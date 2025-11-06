@@ -145,6 +145,27 @@ export async function upsertPick(
 	);
 }
 
+export async function clearPick(
+	fetchFn: typeof fetch,
+	params: { seasonId: string; weekNumber: number; memberId: string; gameKey: string }
+) {
+	const qs = new URLSearchParams({
+		memberId: params.memberId,
+		gameKey: params.gameKey
+	});
+	return apiFetch<{ removed: boolean }>(
+		fetchFn,
+		`/api/seasons/${params.seasonId}/weeks/${params.weekNumber}/picks?${qs.toString()}`,
+		{
+			method: 'DELETE',
+			body: JSON.stringify({
+				memberId: params.memberId,
+				gameKey: params.gameKey
+			})
+		}
+	);
+}
+
 export async function upsertTieBreaker(
 	fetchFn: typeof fetch,
 	params: { seasonId: string; weekNumber: number; memberId: string; points: number }
