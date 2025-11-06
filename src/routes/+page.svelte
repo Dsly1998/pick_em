@@ -33,6 +33,7 @@ let restoredFromStorage = $state(false);
 
 	type GameType = (typeof games)[number];
 	const topMember = $derived(sortedMembers[0]);
+	const homeGridMemberCount = $derived(Math.max(members.length, 1));
 
 	const totalWins = $derived(members.reduce((acc, member) => acc + member.seasonRecord.wins, 0));
 	const totalLosses = $derived(
@@ -51,7 +52,6 @@ let restoredFromStorage = $state(false);
 let weekStatus = $state('Upcoming');
 let selectedWeekNumber = $state(initialWeekNumber);
 let picksPageHref = $state('/picks');
-let homeGridColumns = $state('');
 
 $effect(() => {
 	if (games.some((game) => game.status === 'in-progress')) {
@@ -80,11 +80,6 @@ $effect(() => {
 	params.set('season', selectedSeasonId);
 	params.set('week', String(selectedWeekNumber));
 	picksPageHref = `/picks?${params.toString()}`;
-});
-
-$effect(() => {
-	const count = Math.max(members.length, 1);
-	homeGridColumns = `minmax(220px, 1.6fr) repeat(${count}, minmax(160px, 1fr))`;
 });
 
 $effect(() => {
@@ -188,36 +183,42 @@ $effect(() => {
 		return team.name ?? (side === 'home' ? 'Home Team' : 'Away Team');
 	}
 
-	function cellClasses(game: GameType, pick?: GamePick | null) {
+	function cellClasses(pickStatus: 'pending' | 'correct' | 'incorrect', hasPick: boolean) {
 		const classes = [
-			'rounded-xl',
+			'family-grid__cell',
+			'rounded-md',
 			'border',
-			'border-slate-700/60',
+			'border-slate-700',
 			'bg-slate-900/80',
-			'p-3',
-			'text-sm',
-			'text-slate-100',
-			'shadow-sm'
+			'text-center',
+			'text-slate-200',
+			'font-medium',
+			'transition-colors',
+			'duration-150'
 		];
 
-		if (pick) {
-			classes.push(
-				'border-emerald-400/60',
-				'bg-emerald-500/18',
-				'text-emerald-50',
-				'shadow-emerald-500/30'
-			);
+		if (!hasPick) {
+			classes.push('text-slate-400', 'italic');
 		}
 
-		if (pick && game.status === 'final' && game.winner) {
-			if (game.winner === pick.chosenSide) {
-				classes.push('border-emerald-400', 'bg-emerald-500/20', 'text-emerald-50');
-			} else {
-				classes.push('border-rose-400/70', 'bg-rose-500/20', 'text-rose-100');
-			}
+		if (pickStatus === 'correct') {
+			classes.push('bg-emerald-600/30', 'border-emerald-400', 'text-emerald-50');
+		} else if (pickStatus === 'incorrect') {
+			classes.push('bg-rose-600/30', 'border-rose-400', 'text-rose-50');
 		}
 
 		return classes.join(' ');
+	}
+
+	function teamNameOnly(game: GameType, side: 'home' | 'away') {
+		const team = side === 'home' ? game.homeTeam : game.awayTeam;
+		if (team?.name && team.name.trim().length > 0) {
+			return team.name.trim();
+		}
+		if (team?.code && team.code.trim().length > 0) {
+			return team.code.toUpperCase();
+		}
+		return teamLabel(game, side);
 	}
 </script>
 
@@ -330,57 +331,36 @@ $effect(() => {
 			class="w-full overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80 p-2 shadow-inner shadow-black/40"
 		>
 			<div
-				class="inline-grid min-w-full gap-2"
-				style={`grid-template-columns: ${homeGridColumns};`}
+				class="family-grid inline-grid min-w-full gap-1"
+				style={`--family-grid-members: ${homeGridMemberCount};`}
 			>
-				<div class="px-3 py-2 text-xs font-semibold tracking-wide text-slate-300 uppercase">
+				<div class="family-grid__header rounded-md bg-slate-800/90 text-slate-100 uppercase">
 					Game
 				</div>
 				{#each members as member (member.id)}
-					<div class="px-3 py-2 text-xs font-semibold tracking-wide text-slate-300 uppercase">
+					<div class="family-grid__header rounded-md bg-slate-800/90 text-center text-slate-100 uppercase">
 						{member.name}
 					</div>
 				{/each}
 
 				{#each games as game (game.id)}
-					<div
-						class="space-y-1 rounded-xl border border-slate-700 bg-slate-900/85 p-3 text-sm text-slate-100"
-					>
-						<p class="font-semibold text-white">
-							{teamLabel(game, 'home')} <span class="text-emerald-300">vs</span>
-							{teamLabel(game, 'away')}
-						</p>
-						<p class="text-xs text-slate-300">
-							{formatKickoff(game.kickoff)} · {game.location ?? 'Venue TBD'}
-						</p>
-						{#if game.status === 'final' && game.homeScore != null && game.awayScore != null}
-							<p class="text-xs text-emerald-300">
-								Final: {game.homeScore} - {game.awayScore}
-								{#if winnerLabel(game)}
-									• {winnerLabel(game)}
-								{/if}
-							</p>
-						{:else}
-							<p class="text-xs tracking-wide text-slate-400 uppercase">{game.status}</p>
-						{/if}
+					<div class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100">
+						{teamNameOnly(game, 'home')} vs {teamNameOnly(game, 'away')}
 					</div>
 					{#each members as member (member.id)}
-						{@const memberPick = game.picks.find((entry) => entry.memberId === member.id)}
-						<div class={cellClasses(game, memberPick)}>
-							<p class="text-xs tracking-wide text-slate-200 uppercase">
-								{memberPick ? (memberPick.chosenSide === 'home' ? 'Home' : 'Away') : 'Pending'}
-							</p>
-							<p class="mt-1 text-sm font-semibold text-white">
-								{memberPick ? teamLabel(game, memberPick.chosenSide) : 'No pick yet'}
-							</p>
-							{#if game.status === 'final' && memberPick}
-								<p class="mt-1 text-xs text-slate-100">
-									{game.winner === memberPick.chosenSide ? 'Correct pick' : 'Missed pick'}
-								</p>
-							{:else if !memberPick}
-								<p class="mt-1 text-xs text-slate-300">Locks when submitted</p>
+						{@const memberPick = game.picks.find((entry) => entry.memberId === member.id) ?? null}
+						{@const pickStatus =
+							memberPick?.status ??
+							(game.status === 'final' && memberPick
+								? game.winner === memberPick.chosenSide
+									? 'correct'
+									: 'incorrect'
+								: 'pending')}
+						<div class={cellClasses(pickStatus as 'pending' | 'correct' | 'incorrect', !!memberPick)}>
+							{#if memberPick}
+								{teamLabel(game, memberPick.chosenSide)}
 							{:else}
-								<p class="mt-1 text-xs text-slate-200">Locked in</p>
+								No pick yet
 							{/if}
 						</div>
 					{/each}
@@ -577,5 +557,81 @@ $effect(() => {
 				</div>
 			{/each}
 		</div>
-</section>
+	</section>
 {/if}
+
+<style>
+	.family-grid {
+		grid-template-columns: minmax(120px, 1.2fr)
+			repeat(var(--family-grid-members, 1), minmax(88px, 0.8fr));
+		font-size: 0.7rem;
+	}
+
+	.family-grid__header,
+	.family-grid__game,
+	.family-grid__cell {
+		padding: 0.35rem 0.45rem;
+		line-height: 1.1;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.family-grid__header {
+		font-size: 0.55rem;
+		letter-spacing: 0.12em;
+	}
+
+	.family-grid__game {
+		font-size: 0.7rem;
+		font-weight: 600;
+	}
+
+	.family-grid__cell {
+		font-size: 0.68rem;
+	}
+
+	@media (max-width: 1024px) {
+		.family-grid {
+			grid-template-columns: minmax(110px, 1.1fr)
+				repeat(var(--family-grid-members, 1), minmax(80px, 0.75fr));
+			font-size: 0.66rem;
+		}
+
+		.family-grid__header,
+		.family-grid__game,
+		.family-grid__cell {
+			padding: 0.3rem 0.4rem;
+		}
+	}
+
+	@media (max-width: 768px) {
+		.family-grid {
+			grid-template-columns: minmax(100px, 1.05fr)
+				repeat(var(--family-grid-members, 1), minmax(72px, 0.7fr));
+			font-size: 0.62rem;
+		}
+
+		.family-grid__game {
+			font-size: 0.66rem;
+		}
+
+		.family-grid__cell {
+			font-size: 0.62rem;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.family-grid {
+			grid-template-columns: minmax(94px, 1fr)
+				repeat(var(--family-grid-members, 1), minmax(65px, 0.66fr));
+			font-size: 0.58rem;
+		}
+
+		.family-grid__header,
+		.family-grid__game,
+		.family-grid__cell {
+			padding: 0.28rem 0.35rem;
+		}
+	}
+</style>

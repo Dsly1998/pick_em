@@ -82,7 +82,7 @@ func ensureSeason(ctx context.Context, pool *pgxpool.Pool, seasonKey string) (st
 	if err == nil {
 		return seasonID, nil
 	}
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if !errors.Is(err, pgx.ErrNoRows) {
 		return "", fmt.Errorf("bootstrap: lookup season %s: %w", seasonKey, err)
 	}
 
