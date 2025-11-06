@@ -7,6 +7,7 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"pickem/backend/internal/bootstrap"
 	"pickem/backend/internal/config"
 	"pickem/backend/internal/database"
 	httpapi "pickem/backend/internal/http"
@@ -31,6 +32,10 @@ func main() {
 
 	st := store.New(pool)
 	defer st.Close()
+
+	if err := bootstrap.Run(ctx, pool, cfg); err != nil {
+		log.Fatalf("bootstrap: %v", err)
+	}
 
 	srv := httpapi.New(cfg, st)
 

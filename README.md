@@ -1,38 +1,49 @@
-# sv
+# Big Dog Pool
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+Pick'em tracker for one family. The Go API reads NFL scores from SportsData.io, stores everything in Supabase Postgres, and the SvelteKit UI renders/edits communal picks.
 
-## Creating a project
+## Prerequisites
 
-If you're seeing this, you've probably already done this step. Congrats!
+- Go 1.22+
+- Node 20+
+- A Supabase project (or any Postgres-compatible URL)
+- SportsData.io NFL API key
 
-```sh
-# create a new project in the current directory
-npx sv create
+## Environment
 
-# create a new project in my-app
-npx sv create my-app
+Set the variables in both `.env` (frontend) and `backend/.env` (API). The important ones are:
+
+```env
+PUBLIC_API_BASE_URL=http://localhost:8080
+PUBLIC_SUPABASE_URL=...
+PUBLIC_SUPABASE_ANON_KEY=...
+
+SUPABASE_DB_URL=postgresql://...
+SPORTS_API_KEY=...
+SPORTS_API_BASE_URL=https://api.sportsdata.io/v3/nfl
+SPORTS_SEASON_KEY=2025REG
+FAMILY_MEMBER_NAMES=Dallin,Danielle,Lauren,Brad,Dad,Mom
+COMMISSIONER_NAME=Brad
+SPORTS_SYNC_ENABLED=true
 ```
 
-## Developing
+On startup the API uses those values to:
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+- Upsert the family roster (flagging the commissioner)
+- Ensure the season and 18 regular-season weeks exist
+- Auto-sync games from SportsData when a week is opened (and on-demand via the “Sync Week” button)
+
+## Install & Run
 
 ```sh
-npm run dev
+# Backend
+cd backend
+go run ./cmd/api
 
-# or start the server and open the app in a new browser tab
+# Frontend (second terminal)
+cd ..
+npm install
 npm run dev -- --open
 ```
 
-## Building
-
-To create a production version of your app:
-
-```sh
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+The UI talks to the Go API at `http://localhost:8080`. Picks, tie breakers, and winners are shared for the whole family—no auth required.

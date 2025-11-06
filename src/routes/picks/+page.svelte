@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto, resolve, SvelteURLSearchParams } from '$app/navigation';
+import { goto } from '$app/navigation';
 	import { declareWeekWinner, syncWeek, upsertPick, upsertTieBreaker } from '$lib/api/client';
 	import type { PageData } from './$types';
 	import type { Game } from '$lib/types';
@@ -44,18 +44,22 @@
 		members.find((member) => member.id === selectedMemberId) ?? members[0] ?? null
 	);
 
-	const selectedWeekNumber = $derived(() => {
+const selectedWeekNumber = $derived(
+	(() => {
 		const parsed = Number.parseInt(selectedWeekValue, 10);
 		if (!Number.isNaN(parsed) && parsed > 0) {
 			return parsed;
 		}
 		return activeWeek?.number ?? weeks[0]?.number ?? 1;
-	});
+	})()
+);
 
-	const currentTieBreaker = $derived(() => {
+const currentTieBreaker = $derived(
+	(() => {
 		if (!selectedMember || !activeWeek) return '';
 		return tieBreakerInputs[selectedMember.id]?.[activeWeek.number] ?? '';
-	});
+	})()
+);
 
 	const selectedMemberSummary = $derived(
 		selectedMember
@@ -93,14 +97,13 @@
 		return base;
 	}
 
-	function navigate(seasonId: string, weekNumber?: number) {
-	const params = new SvelteURLSearchParams();
+function navigate(seasonId: string, weekNumber?: number) {
+	const params = new URLSearchParams();
 	params.set('season', seasonId);
 	if (weekNumber && Number.isFinite(weekNumber)) {
 		params.set('week', String(weekNumber));
 	}
-	const target = resolve(`?${params.toString()}`);
-	goto(target.href, { keepfocus: true, noscroll: true });
+	goto(`?${params.toString()}`, { keepfocus: true, noscroll: true });
 	}
 
 	function handleSeasonChange(id: string) {
@@ -134,16 +137,32 @@
 
 	function formattedDate(kickoff?: string | null) {
 		if (!kickoff) return 'TBD';
-		return new Date(kickoff).toLocaleString(undefined, {
-			weekday: 'short',
-			month: 'short',
-			day: 'numeric',
-			hour: 'numeric',
-			minute: '2-digit'
-		});
-	}
+	return new Date(kickoff).toLocaleString(undefined, {
+		weekday: 'short',
+		month: 'short',
+		day: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit'
+	});
+}
 
-	async function handlePick(gameKey: string, side: 'home' | 'away') {
+function teamLabel(game: Game, side: 'home' | 'away') {
+	const team = side === 'home' ? game.homeTeam : game.awayTeam;
+	if (!team) {
+		return side === 'home' ? 'Home Team' : 'Away Team';
+	}
+	return `${team.location ?? ''} ${team.name ?? ''}`.trim() || (side === 'home' ? 'Home Team' : 'Away Team');
+}
+
+function winnerTeamLabel(game: Game): string {
+	if (!game.winner) {
+		return '';
+	}
+	const side = game.winner === 'home' ? 'home' : 'away';
+	return teamLabel(game, side);
+}
+
+async function handlePick(gameKey: string, side: 'home' | 'away') {
 		if (!selectedMemberId || !season || !activeWeek) return;
 		const memberSelections = { ...(selections[selectedMemberId] ?? {}) };
 		const previous = memberSelections[gameKey];
@@ -350,7 +369,7 @@
 					<select
 						bind:value={selectedSeasonId}
 						class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400 focus:outline-none"
-						on:change={(event) => handleSeasonChange(event.currentTarget.value)}
+						onchange={(event) => handleSeasonChange(event.currentTarget.value)}
 					>
 						{#each seasons as seasonOption (seasonOption.id)}
 							<option value={seasonOption.id}>{seasonOption.label} · {seasonOption.year}</option>
@@ -362,7 +381,7 @@
 					<select
 						bind:value={selectedWeekValue}
 						class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400 focus:outline-none"
-						on:change={(event) => handleWeekChange(Number(event.currentTarget.value))}
+						onchange={(event) => handleWeekChange(Number(event.currentTarget.value))}
 					>
 						{#each weeks as week (week.number)}
 							<option value={week.number}>{week.label}</option>
@@ -453,8 +472,7 @@
 								>
 									<p class="text-xs tracking-wide text-slate-300 uppercase">Home</p>
 									<p class="mt-1 text-lg font-semibold text-white">
-										{game.homeTeam.location}
-										{game.homeTeam.name}
+										{teamLabel(game, 'home')}
 									</p>
 									{#if game.status === 'final' && game.winner}
 										<p class="mt-2 text-xs text-emerald-200">
@@ -473,8 +491,7 @@
 								>
 									<p class="text-xs tracking-wide text-slate-300 uppercase">Away</p>
 									<p class="mt-1 text-lg font-semibold text-white">
-										{game.awayTeam.location}
-										{game.awayTeam.name}
+										{teamLabel(game, 'away')}
 									</p>
 									{#if game.status === 'final' && game.winner}
 										<p class="mt-2 text-xs text-emerald-200">
@@ -486,7 +503,7 @@
 							<footer
 								class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400"
 							>
-								<span>{game.location}</span>
+								<span>{game.location ?? 'Venue TBD'}</span>
 								<span class="text-slate-500">{game.gameKey}</span>
 							</footer>
 						</article>
@@ -506,7 +523,7 @@
 						min="0"
 						class="mt-4 w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400 focus:outline-none"
 						value={currentTieBreaker}
-						on:input={(event) => handleTieBreakerInput(event.currentTarget.value)}
+						oninput={(event) => handleTieBreakerInput(event.currentTarget.value)}
 					/>
 					<button
 						class="mt-4 inline-flex w-full justify-center rounded-full border border-emerald-500/50 bg-emerald-500 px-4 py-2 text-xs font-semibold tracking-wide text-emerald-950 uppercase shadow hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
@@ -570,7 +587,7 @@
 									class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400 focus:outline-none"
 									rows="3"
 									bind:value={winnerNotes}
-								/>
+								></textarea>
 							</label>
 							<button
 								class="inline-flex w-full justify-center rounded-full border border-emerald-500/50 bg-emerald-500 px-4 py-2 text-xs font-semibold tracking-wide text-emerald-950 uppercase shadow hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
@@ -614,12 +631,14 @@
 								{teamLabel(game, 'home')} <span class="text-emerald-300">vs</span>
 								{teamLabel(game, 'away')}
 							</p>
-							<p class="text-xs text-slate-300">{formattedDate(game.kickoff)} · {game.location}</p>
+							<p class="text-xs text-slate-300">
+								{formattedDate(game.kickoff)} · {game.location ?? 'Venue TBD'}
+							</p>
 							{#if game.status === 'final' && game.homeScore != null && game.awayScore != null}
 								<p class="text-xs text-emerald-300">
 									Final: {game.homeScore} - {game.awayScore}
 									{#if game.winner}
-										• {game.winner === 'home' ? game.homeTeam.name : game.awayTeam.name}
+										• {winnerTeamLabel(game)}
 									{/if}
 								</p>
 							{:else}

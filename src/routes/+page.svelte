@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto, resolve, SvelteURLSearchParams } from '$app/navigation';
+import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
 	import type { GamePick } from '$lib/types';
 	import { formatRecord } from '$lib/utils/records';
@@ -44,27 +44,46 @@
 		allPicks.filter((pick) => pick.status === 'incorrect').length
 	);
 
-	const commissionerName = 'Brad';
+const commissionerName = 'Brad';
 
-	const weekStatus = $derived(() => {
-		if (games.some((game) => game.status === 'in-progress')) {
-			return 'In Progress';
+const weekStatus = $derived(() => {
+	if (games.some((game) => game.status === 'in-progress')) {
+		return 'In Progress';
 		}
 		if (games.some((game) => game.status === 'final')) {
 			return 'Final';
 		}
-		return 'Upcoming';
-	});
+	return 'Upcoming';
+});
 
-	function navigate(seasonId: string, weekNumber?: number) {
-	const params = new SvelteURLSearchParams();
+const selectedWeekNumber = $derived(
+	(() => {
+		const parsed = Number.parseInt(selectedWeekValue, 10);
+		if (!Number.isNaN(parsed) && parsed > 0) {
+			return parsed;
+		}
+		return activeWeek?.number ?? weeks[0]?.number ?? 1;
+	})()
+);
+
+const picksPageHref = $derived(() => {
+	if (!selectedSeasonId) {
+		return '/picks';
+	}
+	const params = new URLSearchParams();
+	params.set('season', selectedSeasonId);
+	params.set('week', String(selectedWeekNumber));
+	return `/picks?${params.toString()}`;
+});
+
+function navigate(seasonId: string, weekNumber?: number) {
+	const params = new URLSearchParams();
 	params.set('season', seasonId);
 	if (weekNumber && Number.isFinite(weekNumber)) {
 		params.set('week', String(weekNumber));
 	}
-	const target = resolve(`?${params.toString()}`);
-	goto(target.href, { keepfocus: true, noscroll: true });
-	}
+	goto(`?${params.toString()}`, { keepfocus: true, noscroll: true });
+}
 
 	function handleSeasonChange(id: string) {
 		navigate(id);
@@ -87,14 +106,22 @@
 	}
 
 	function teamLabel(game: GameType, side: 'home' | 'away') {
-		const team = side === 'home' ? game.homeTeam : game.awayTeam;
-		return `${team.location} ${team.name}`;
+	const team = side === 'home' ? game.homeTeam : game.awayTeam;
+	if (!team) {
+		return side === 'home' ? 'Home Team' : 'Away Team';
 	}
+	return `${team.location ?? ''} ${team.name ?? ''}`.trim() || (side === 'home' ? 'Home Team' : 'Away Team');
+}
 
-	function winnerLabel(game: GameType) {
-		if (!game.winner) return null;
-		return game.winner === 'home' ? game.homeTeam.name : game.awayTeam.name;
+function winnerLabel(game: GameType) {
+	if (!game.winner) return null;
+	const side = game.winner === 'home' ? 'home' : 'away';
+	const team = side === 'home' ? game.homeTeam : game.awayTeam;
+	if (!team) {
+		return side === 'home' ? 'Home Team' : 'Away Team';
 	}
+	return team.name ?? (side === 'home' ? 'Home Team' : 'Away Team');
+}
 
 	function cellClasses(game: GameType, pick?: GamePick | null) {
 		const classes = [
@@ -152,7 +179,7 @@
 					<select
 						class="min-w-[12rem] rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400 focus:outline-none"
 						bind:value={selectedSeasonId}
-						on:change={(event) => handleSeasonChange(event.currentTarget.value)}
+						onchange={(event) => handleSeasonChange(event.currentTarget.value)}
 					>
 						{#each seasons as seasonOption (seasonOption.id)}
 							<option value={seasonOption.id}>{seasonOption.label} · {seasonOption.year}</option>
@@ -164,7 +191,7 @@
 					<select
 						class="min-w-[8rem] rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400 focus:outline-none"
 						bind:value={selectedWeekValue}
-						on:change={(event) => handleWeekChange(Number(event.currentTarget.value))}
+						onchange={(event) => handleWeekChange(Number(event.currentTarget.value))}
 					>
 						{#each weeks as weekOption (weekOption.number)}
 							<option value={weekOption.number}>Week {weekOption.number}</option>
@@ -218,7 +245,7 @@
 				</span>
 			</div>
 		<a
-			href={resolve(`/picks?season=${selectedSeasonId}&week=${selectedWeekNumber}`).href}
+			href={picksPageHref}
 				class="inline-flex items-center rounded-full bg-emerald-500 px-6 py-2 text-sm font-semibold text-emerald-950 shadow-lg shadow-emerald-900/50 transition hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
 			>
 				Set Week {activeWeek.number} Picks
@@ -248,7 +275,9 @@
 							{teamLabel(game, 'home')} <span class="text-emerald-300">vs</span>
 							{teamLabel(game, 'away')}
 						</p>
-						<p class="text-xs text-slate-300">{formatKickoff(game.kickoff)} · {game.location}</p>
+						<p class="text-xs text-slate-300">
+							{formatKickoff(game.kickoff)} · {game.location ?? 'Venue TBD'}
+						</p>
 						{#if game.status === 'final' && game.homeScore != null && game.awayScore != null}
 							<p class="text-xs text-emerald-300">
 								Final: {game.homeScore} - {game.awayScore}
@@ -353,8 +382,8 @@
 					<strong class="text-white">{pendingPickCount}</strong>
 				</li>
 			</ul>
-		<a
-			href={resolve(`/picks?season=${selectedSeasonId}&week=${selectedWeekNumber}`).href}
+			<a
+			href={picksPageHref}
 				class="inline-flex w-full justify-center rounded-full border border-emerald-500/40 bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 shadow-lg shadow-emerald-900/50 transition hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
 			>
 				Jump to picks
@@ -387,8 +416,8 @@
 						<span>{member.tieBreakers[activeWeek.number] ?? '—'} pts</span>
 					</div>
 				</div>
-			<a
-				href={resolve(`/picks?season=${selectedSeasonId}&week=${selectedWeekNumber}`).href}
+				<a
+				href={picksPageHref}
 					class="inline-flex w-full justify-center rounded-full border border-emerald-500/40 bg-emerald-500 px-3 py-2 text-sm font-semibold text-emerald-950 shadow hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
 				>
 					Update picks
@@ -469,7 +498,7 @@
 							</p>
 						{/if}
 					</div>
-					<p class="text-xs text-slate-400">{game.location}</p>
+							<p class="text-xs text-slate-400">{game.location ?? 'Venue TBD'}</p>
 				</div>
 			{/each}
 		</div>

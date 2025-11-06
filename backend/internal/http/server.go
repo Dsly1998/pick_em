@@ -1,8 +1,11 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,6 +15,7 @@ import (
 	"github.com/go-chi/cors"
 
 	"pickem/backend/internal/config"
+	"pickem/backend/internal/models"
 	"pickem/backend/internal/store"
 	"pickem/backend/sportsdata"
 )
@@ -21,6 +25,11 @@ type Server struct {
 	store  *store.Store
 	router chi.Router
 }
+
+var (
+	errSportsAPIKeyMissing   = errors.New("sports api key is not configured")
+	errSportsDataUnavailable = errors.New("sports data unavailable")
+)
 
 func New(cfg config.Config, store *store.Store) *Server {
 	s := &Server{
@@ -126,6 +135,22 @@ func (s *Server) handleGetPageData(w http.ResponseWriter, r *http.Request) {
 		default:
 			writeError(w, http.StatusInternalServerError, err)
 			return
+		}
+	}
+
+	if len(data.Games) == 0 && s.cfg.EnableSportsSync && s.cfg.SportsAPIKey != "" {
+		season := data.Season
+		week := data.ActiveWeek
+		snapshots, syncErr := s.syncWeek(ctx, &season, &week)
+		if syncErr != nil && !errors.Is(syncErr, errSportsAPIKeyMissing) {
+			log.Printf("http: automatic sync failed for season %s week %d: %v", seasonID, week.Number, syncErr)
+		}
+		if syncErr == nil && len(snapshots) > 0 {
+			if refreshed, err := s.store.GetPageData(ctx, seasonID, week.Number); err == nil {
+				data = refreshed
+			} else {
+				log.Printf("http: reload after sync failed for season %s week %d: %v", seasonID, week.Number, err)
+			}
 		}
 	}
 
@@ -287,25 +312,51 @@ func (s *Server) handleSyncWeek(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.cfg.SportsAPIKey == "" {
-		writeError(w, http.StatusInternalServerError, errors.New("sports api key is not configured"))
-		return
-	}
-
-	snapshots, err := sportsdata.FetchScoresByWeek(ctx, nil, s.cfg.SportsAPIBaseURL, s.cfg.SportsAPIKey, season.SportsDataSeasonKey, weekNumber)
+	snapshots, err := s.syncWeek(ctx, season, week)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, err)
-		return
-	}
-
-	if err := s.store.SyncWeekFromSnapshots(ctx, *season, *week, snapshots); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+		status := http.StatusInternalServerError
+		switch {
+		case errors.Is(err, errSportsAPIKeyMissing):
+			status = http.StatusInternalServerError
+		case errors.Is(err, errSportsDataUnavailable):
+			status = http.StatusBadGateway
+		}
+		writeError(w, status, err)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"syncedGames": len(snapshots),
 	})
+}
+
+func (s *Server) syncWeek(ctx context.Context, season *models.Season, week *models.Week) ([]sportsdata.GameSnapshot, error) {
+	if season == nil || week == nil {
+		return nil, fmt.Errorf("sync: season and week must be provided")
+	}
+
+	if strings.TrimSpace(s.cfg.SportsAPIKey) == "" {
+		return nil, errSportsAPIKeyMissing
+	}
+
+	if strings.TrimSpace(season.SportsDataSeasonKey) == "" {
+		return nil, fmt.Errorf("sync: season %s is missing a sports data key", season.ID)
+	}
+
+	if week.Number <= 0 {
+		return nil, fmt.Errorf("sync: invalid week number %d", week.Number)
+	}
+
+	snapshots, err := sportsdata.FetchScoresByWeek(ctx, nil, s.cfg.SportsAPIBaseURL, s.cfg.SportsAPIKey, season.SportsDataSeasonKey, week.Number)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", errSportsDataUnavailable, err)
+	}
+
+	if err := s.store.SyncWeekFromSnapshots(ctx, *season, *week, snapshots); err != nil {
+		return nil, err
+	}
+
+	return snapshots, nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
