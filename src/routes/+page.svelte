@@ -46,34 +46,38 @@ import { goto } from '$app/navigation';
 
 const commissionerName = 'Brad';
 
-const weekStatus = $derived(() => {
+let weekStatus = $state('Upcoming');
+let selectedWeekNumber = $state(1);
+let picksPageHref = $state('/picks');
+
+$effect(() => {
 	if (games.some((game) => game.status === 'in-progress')) {
-		return 'In Progress';
-		}
-		if (games.some((game) => game.status === 'final')) {
-			return 'Final';
-		}
-	return 'Upcoming';
+		weekStatus = 'In Progress';
+		return;
+	}
+	if (games.some((game) => game.status === 'final')) {
+		weekStatus = 'Final';
+		return;
+	}
+	weekStatus = 'Upcoming';
 });
 
-const selectedWeekNumber = $derived(
-	(() => {
-		const parsed = Number.parseInt(selectedWeekValue, 10);
-		if (!Number.isNaN(parsed) && parsed > 0) {
-			return parsed;
-		}
-		return activeWeek?.number ?? weeks[0]?.number ?? 1;
-	})()
-);
+$effect(() => {
+	const parsed = Number.parseInt(selectedWeekValue, 10);
+	selectedWeekNumber = !Number.isNaN(parsed) && parsed > 0
+		? parsed
+		: activeWeek?.number ?? weeks[0]?.number ?? 1;
+});
 
-const picksPageHref = $derived(() => {
+$effect(() => {
 	if (!selectedSeasonId) {
-		return '/picks';
+		picksPageHref = '/picks';
+		return;
 	}
 	const params = new URLSearchParams();
 	params.set('season', selectedSeasonId);
 	params.set('week', String(selectedWeekNumber));
-	return `/picks?${params.toString()}`;
+	picksPageHref = `/picks?${params.toString()}`;
 });
 
 function navigate(seasonId: string, weekNumber?: number) {

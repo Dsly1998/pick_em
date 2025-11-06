@@ -44,22 +44,23 @@ import { goto } from '$app/navigation';
 		members.find((member) => member.id === selectedMemberId) ?? members[0] ?? null
 	);
 
-const selectedWeekNumber = $derived(
-	(() => {
-		const parsed = Number.parseInt(selectedWeekValue, 10);
-		if (!Number.isNaN(parsed) && parsed > 0) {
-			return parsed;
-		}
-		return activeWeek?.number ?? weeks[0]?.number ?? 1;
-	})()
-);
+let selectedWeekNumber = $state(1);
+let currentTieBreaker = $state('');
 
-const currentTieBreaker = $derived(
-	(() => {
-		if (!selectedMember || !activeWeek) return '';
-		return tieBreakerInputs[selectedMember.id]?.[activeWeek.number] ?? '';
-	})()
-);
+$effect(() => {
+	const parsed = Number.parseInt(selectedWeekValue, 10);
+	selectedWeekNumber = !Number.isNaN(parsed) && parsed > 0
+		? parsed
+		: activeWeek?.number ?? weeks[0]?.number ?? 1;
+});
+
+$effect(() => {
+	if (!selectedMember || !activeWeek) {
+		currentTieBreaker = '';
+		return;
+	}
+	currentTieBreaker = tieBreakerInputs[selectedMember.id]?.[activeWeek.number] ?? '';
+});
 
 	const selectedMemberSummary = $derived(
 		selectedMember
