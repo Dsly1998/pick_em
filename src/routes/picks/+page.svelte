@@ -30,64 +30,57 @@
 	const STORAGE_MEMBER_KEY = 'bdp:selectedMember';
 
 	const initialSeasonId = data.selectedSeasonId ?? seasons[0]?.id ?? '';
-const initialWeekNumber = data.selectedWeekNumber ?? activeWeek?.number ?? weeks[0]?.number ?? 1;
-const initialMemberId = members[0]?.id ?? '';
+	const initialWeekNumber = data.selectedWeekNumber ?? activeWeek?.number ?? weeks[0]?.number ?? 1;
+	const initialMemberId = members[0]?.id ?? '';
 
-let selectedSeasonId = $state(initialSeasonId);
-let selectedWeekValue = $state(String(initialWeekNumber));
-let selectedMemberId = $state(initialMemberId);
-let selections = $state({} as Record<string, Record<string, 'home' | 'away'>>);
-let tieBreakerInputs = $state({} as Record<string, Record<number, string>>);
-let tieBreakerSaving = $state(false);
-let declareSaving = $state(false);
-let syncSaving = $state(false);
-let winnerMemberId = $state('');
-let winnerNotes = $state('');
-let restoredFromStorage = $state(false);
-
-$effect(() => {
-	const nextSeason = data.selectedSeasonId ?? seasons[0]?.id ?? '';
-	const currentSeasonParam =
-		typeof window !== 'undefined'
-			? new URL(window.location.href).searchParams.get('season') ?? ''
-			: '';
-	if (currentSeasonParam && nextSeason && currentSeasonParam !== nextSeason) {
-		return;
-	}
-	if (nextSeason && nextSeason !== selectedSeasonId) {
-		selectedSeasonId = nextSeason;
-	}
-	const weekNumber = data.selectedWeekNumber ?? activeWeek?.number ?? weeks[0]?.number ?? 1;
-	const nextWeekValue = String(weekNumber);
-	const currentWeekParam =
-		typeof window !== 'undefined'
-			? new URL(window.location.href).searchParams.get('week') ?? ''
-			: '';
-	if (currentWeekParam && nextWeekValue && currentWeekParam !== nextWeekValue) {
-		return;
-	}
-	if (nextWeekValue !== selectedWeekValue) {
-		selectedWeekValue = nextWeekValue;
-	}
-	if (!members.some((member) => member.id === selectedMemberId)) {
-		selectedMemberId = members[0]?.id ?? '';
-	}
-	selections = buildInitialSelections();
-	tieBreakerInputs = buildInitialTieBreakers();
-	winnerMemberId = weekResult?.winnerMemberId ?? '';
-	winnerNotes = weekResult?.notes ?? '';
-});
+	let selectedSeasonId = $state(initialSeasonId);
+	let selectedWeekValue = $state(String(initialWeekNumber));
+	let selectedMemberId = $state(initialMemberId);
+	let selections = $state({} as Record<string, Record<string, 'home' | 'away'>>);
+	let tieBreakerInputs = $state({} as Record<string, Record<number, string>>);
+	let tieBreakerSaving = $state(false);
+	let declareSaving = $state(false);
+	let syncSaving = $state(false);
+	let winnerMemberId = $state('');
+	let winnerNotes = $state('');
+	let restoredFromStorage = $state(false);
 
 	$effect(() => {
-		gamesView = games.map((game) => ({
-			...game,
-			picks: (game.picks ?? []).map((pick) => ({
-				...pick,
-				status:
-					pick.status ?? determinePickStatus(game, (pick.chosenSide as 'home' | 'away') ?? 'home')
-			}))
-		}));
+		const nextSeason = data.selectedSeasonId ?? seasons[0]?.id ?? '';
+		const currentSeasonParam =
+			typeof window !== 'undefined'
+				? (new URL(window.location.href).searchParams.get('season') ?? '')
+				: '';
+		if (currentSeasonParam && nextSeason && currentSeasonParam !== nextSeason) {
+			return;
+		}
+		if (nextSeason && nextSeason !== selectedSeasonId) {
+			selectedSeasonId = nextSeason;
+		}
+		const weekNumber = data.selectedWeekNumber ?? activeWeek?.number ?? weeks[0]?.number ?? 1;
+		const nextWeekValue = String(weekNumber);
+		const currentWeekParam =
+			typeof window !== 'undefined'
+				? (new URL(window.location.href).searchParams.get('week') ?? '')
+				: '';
+		if (currentWeekParam && nextWeekValue && currentWeekParam !== nextWeekValue) {
+			return;
+		}
+		if (nextWeekValue !== selectedWeekValue) {
+			selectedWeekValue = nextWeekValue;
+		}
+		if (!members.some((member) => member.id === selectedMemberId)) {
+			selectedMemberId = members[0]?.id ?? '';
+		}
+		selections = buildInitialSelections();
+		tieBreakerInputs = buildInitialTieBreakers();
+		winnerMemberId = weekResult?.winnerMemberId ?? '';
+		winnerNotes = weekResult?.notes ?? '';
 	});
+
+		$effect(() => {
+			gamesView = games.map((game) => prepareGame(game));
+		});
 
 	const selectedMember = $derived(
 		members.find((member) => member.id === selectedMemberId) ?? members[0] ?? null
@@ -112,26 +105,26 @@ $effect(() => {
 		currentTieBreaker = tieBreakerInputs[selectedMember.id]?.[activeWeek.number] ?? '';
 	});
 
-$effect(() => {
-	if (typeof window === 'undefined' || !restoredFromStorage) return;
-	if (selectedSeasonId) {
-		window.localStorage.setItem(STORAGE_SEASON_KEY, selectedSeasonId);
-	}
-	if (selectedWeekValue) {
-		window.localStorage.setItem(STORAGE_WEEK_KEY, selectedWeekValue);
-	}
-	if (selectedMemberId) {
-		window.localStorage.setItem(STORAGE_MEMBER_KEY, selectedMemberId);
-	}
-});
+	$effect(() => {
+		if (typeof window === 'undefined' || !restoredFromStorage) return;
+		if (selectedSeasonId) {
+			window.localStorage.setItem(STORAGE_SEASON_KEY, selectedSeasonId);
+		}
+		if (selectedWeekValue) {
+			window.localStorage.setItem(STORAGE_WEEK_KEY, selectedWeekValue);
+		}
+		if (selectedMemberId) {
+			window.localStorage.setItem(STORAGE_MEMBER_KEY, selectedMemberId);
+		}
+	});
 
-$effect(() => {
-	if (typeof window === 'undefined' || restoredFromStorage) return;
-	const url = new URL(window.location.href);
-	const hasSeasonParam = url.searchParams.has('season');
-	const hasWeekParam = url.searchParams.has('week');
+	$effect(() => {
+		if (typeof window === 'undefined' || restoredFromStorage) return;
+		const url = new URL(window.location.href);
+		const hasSeasonParam = url.searchParams.has('season');
+		const hasWeekParam = url.searchParams.has('week');
 
-	const storedSeason = window.localStorage.getItem(STORAGE_SEASON_KEY);
+		const storedSeason = window.localStorage.getItem(STORAGE_SEASON_KEY);
 		const storedWeek = window.localStorage.getItem(STORAGE_WEEK_KEY);
 		const storedMember = window.localStorage.getItem(STORAGE_MEMBER_KEY);
 
@@ -147,25 +140,25 @@ $effect(() => {
 			shouldNavigate = true;
 		}
 
-	if (!hasWeekParam && storedWeek) {
-		weekToUse = storedWeek;
-		if (selectedWeekValue !== storedWeek) {
-			selectedWeekValue = storedWeek;
+		if (!hasWeekParam && storedWeek) {
+			weekToUse = storedWeek;
+			if (selectedWeekValue !== storedWeek) {
+				selectedWeekValue = storedWeek;
+			}
+			shouldNavigate = true;
 		}
-		shouldNavigate = true;
-	}
 
-	if (storedMember && members.some((member) => member.id === storedMember)) {
-		selectedMemberId = storedMember;
-	}
+		if (storedMember && members.some((member) => member.id === storedMember)) {
+			selectedMemberId = storedMember;
+		}
 
-	restoredFromStorage = true;
+		restoredFromStorage = true;
 
-	if (shouldNavigate) {
-		const parsed = Number.parseInt(weekToUse, 10);
-		navigate(seasonToUse, Number.isNaN(parsed) ? undefined : parsed);
-	}
-});
+		if (shouldNavigate) {
+			const parsed = Number.parseInt(weekToUse, 10);
+			navigate(seasonToUse, Number.isNaN(parsed) ? undefined : parsed);
+		}
+	});
 
 	const selectedMemberSummary = $derived(
 		selectedMember
@@ -181,7 +174,7 @@ $effect(() => {
 	const totalLosses = $derived(
 		members.reduce((acc, member) => acc + member.seasonRecord.losses, 0)
 	);
-	const finalGameCount = $derived(gamesView.filter((game) => game.status === 'final').length);
+	const finalGameCount = $derived(gamesView.filter((game) => gameIsFinal(game)).length);
 	const allPicks = $derived(gamesView.flatMap((game) => game.picks));
 	const pendingPickCount = $derived(allPicks.filter((pick) => pick.status === 'pending').length);
 	const correctPickCount = $derived(allPicks.filter((pick) => pick.status === 'correct').length);
@@ -240,7 +233,7 @@ $effect(() => {
 	}
 
 	function pickIsCorrect(game: Game, side: 'home' | 'away') {
-		return game.status === 'final' && game.winner === side;
+		return gameIsFinal(game) && game.winner === side;
 	}
 
 	function formattedDate(kickoff?: string | null) {
@@ -252,6 +245,86 @@ $effect(() => {
 			hour: 'numeric',
 			minute: '2-digit'
 		});
+	}
+
+	function normalizeStatus(status?: string | null) {
+		return (status ?? '').toString().toLowerCase();
+	}
+
+	function normalizeGameStatus(status?: string | null): 'scheduled' | 'in-progress' | 'final' {
+		const normalized = normalizeStatus(status);
+		if (normalized === 'in-progress') return 'in-progress';
+		if (normalized === 'final') return 'final';
+		return 'scheduled';
+	}
+
+	function normalizePickStatus(
+		status?: string | null
+	): 'pending' | 'correct' | 'incorrect' | null {
+		if (!status) return null;
+		const value = status.toString().trim().toLowerCase();
+		if (value === 'pending' || value === 'correct' || value === 'incorrect') {
+			return value;
+		}
+		return null;
+	}
+
+	function normalizeSide(side?: string | null): 'home' | 'away' | null {
+		const normalized = (side ?? '').toString().toLowerCase();
+		if (normalized === 'home' || normalized === 'away') {
+			return normalized;
+		}
+		return null;
+	}
+
+	function deriveWinner(game: Game): 'home' | 'away' | null {
+		const direct = normalizeSide(game.winner);
+		if (direct) {
+			return direct;
+		}
+		const homeScore = game.homeScore;
+		const awayScore = game.awayScore;
+		if (homeScore == null || awayScore == null) {
+			return null;
+		}
+		if (homeScore === awayScore) {
+			return null;
+		}
+		return homeScore > awayScore ? 'home' : 'away';
+	}
+
+	function enrichGame(game: Game): Game {
+		const status = normalizeGameStatus(game.status);
+		const winner = deriveWinner(game);
+		return {
+			...game,
+			status,
+			winner
+		};
+	}
+
+	function prepareGame(game: Game): Game {
+		const enriched = enrichGame(game);
+		return {
+			...enriched,
+			picks: (game.picks ?? []).map((pick) => {
+				const side = normalizeSide(pick.chosenSide) ?? 'home';
+				const normalized = normalizePickStatus(pick.status);
+				return {
+					...pick,
+					chosenSide: side,
+					status: normalized ?? determinePickStatus(enriched, side)
+				};
+			})
+		};
+	}
+
+	function gameIsFinal(game: Game) {
+		return game.status === 'final';
+	}
+
+	function gameInProgress(game: Game) {
+		return game.status === 'in-progress';
 	}
 
 	function teamLabel(game: Game, side: 'home' | 'away') {
@@ -318,21 +391,36 @@ $effect(() => {
 
 		memberSelections[gameKey] = side;
 		selections = { ...selections, [selectedMemberId]: memberSelections };
-		try {
-			const { pick } = await upsertPick(fetch, {
-				seasonId: season.id,
-				weekNumber: activeWeek.number,
-				memberId: selectedMemberId,
-				gameKey,
-				side
-			});
-			if (pick) {
-				applyLocalPick(gameKey, selectedMemberId, {
-					memberId: pick.memberId,
-					chosenSide: pick.chosenSide as 'home' | 'away',
-					status: pick.status as 'pending' | 'correct' | 'incorrect'
+			try {
+				const { pick } = await upsertPick(fetch, {
+					seasonId: season.id,
+					weekNumber: activeWeek.number,
+					memberId: selectedMemberId,
+					gameKey,
+					side
 				});
-			} else {
+				if (pick) {
+					let sourceGame: Game | null =
+						gamesView.find((entry) => entry.gameKey === gameKey) ?? null;
+					if (!sourceGame) {
+						const raw = games.find((entry) => entry.gameKey === gameKey) ?? null;
+						sourceGame = raw ? prepareGame(raw) : null;
+					}
+					const chosenSide = (pick.chosenSide as 'home' | 'away') ?? 'home';
+					let normalizedStatus = normalizePickStatus(pick.status);
+					if (!normalizedStatus) {
+						if (sourceGame && gameIsFinal(sourceGame)) {
+							normalizedStatus = sourceGame.winner === chosenSide ? 'correct' : 'incorrect';
+						} else {
+							normalizedStatus = 'pending';
+						}
+					}
+					applyLocalPick(gameKey, selectedMemberId, {
+						memberId: pick.memberId,
+						chosenSide,
+						status: normalizedStatus
+					});
+				} else {
 				applyLocalPick(gameKey, selectedMemberId, {
 					memberId: selectedMemberId,
 					chosenSide: side
@@ -456,7 +544,7 @@ $effect(() => {
 			);
 		}
 
-		if (game.status === 'final') {
+		if (gameIsFinal(game)) {
 			if (pickIsCorrect(game, side)) {
 				classes.push('border-emerald-400', 'bg-emerald-500/20', 'text-emerald-100');
 			} else if (game.winner) {
@@ -467,28 +555,41 @@ $effect(() => {
 		return classes.join(' ');
 	}
 
+	function pickOutcome(
+		game: Game,
+		pick: Game['picks'][number] | null
+	): 'win' | 'loss' | 'pending' | 'none' {
+		if (!pick) return 'none';
+		const winner = deriveWinner(game);
+		if (!winner || !gameIsFinal(game)) {
+			return 'pending';
+		}
+		return pick.chosenSide === winner ? 'win' : 'loss';
+	}
+
 	function cellClasses(game: Game, memberId: string, pick: Game['picks'][number] | null) {
 		const classes = [
 			'family-grid__cell',
 			'rounded-md',
 			'border',
-			'border-slate-700',
-			'bg-slate-900/80',
-			'text-slate-200',
 			'text-center',
+			'text-white',
 			'font-medium',
 			'transition-colors',
 			'duration-150'
 		];
 
-		if (!pick) {
-			classes.push('text-slate-400', 'italic');
-		}
+		const outcome = pickOutcome(game, pick);
 
-		if (game.status === 'final' && pick?.status === 'correct') {
-			classes.push('bg-emerald-600/30', 'border-emerald-400', 'text-emerald-50');
-		} else if (game.status === 'final' && pick?.status === 'incorrect') {
-			classes.push('bg-rose-600/30', 'border-rose-400', 'text-rose-50');
+		if (outcome === 'win') {
+			classes.push('bg-emerald-500/25', 'border-emerald-400/70', 'font-semibold');
+		} else if (outcome === 'loss') {
+			classes.push('bg-rose-500/25', 'border-rose-400/70', 'font-semibold');
+		} else {
+			classes.push('bg-slate-900/60', 'border-slate-700/70');
+			if (!pick) {
+				classes.push('italic', 'text-white/70');
+			}
 		}
 
 		if (memberId === selectedMemberId) {
@@ -506,8 +607,9 @@ $effect(() => {
 		game: Game,
 		side: 'home' | 'away'
 	): 'pending' | 'correct' | 'incorrect' {
-		if (game.status === 'final' && game.winner) {
-			return game.winner === side ? 'correct' : 'incorrect';
+		const winner = deriveWinner(game);
+		if (gameIsFinal(game) && winner) {
+			return winner === side ? 'correct' : 'incorrect';
 		}
 		return 'pending';
 	}
@@ -528,7 +630,8 @@ $effect(() => {
 			const next = { ...game };
 			const picks = next.picks.filter((entry) => entry.memberId !== memberId);
 			if (pick) {
-				const status = pick.status ?? determinePickStatus(next, pick.chosenSide);
+				const status =
+					normalizePickStatus(pick.status) ?? determinePickStatus(next, pick.chosenSide);
 				picks.push({
 					memberId,
 					chosenSide: pick.chosenSide,
@@ -566,13 +669,17 @@ $effect(() => {
 			<div class="flex flex-col gap-3 sm:w-[22rem]">
 				<div class="text-xs font-semibold tracking-wide text-slate-200 uppercase">
 					Season
-					<div class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white">
+					<div
+						class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white"
+					>
 						{season.label} · {season.year}
 					</div>
 				</div>
 				<div class="text-xs font-semibold tracking-wide text-slate-200 uppercase">
 					Week
-					<div class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white">
+					<div
+						class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white"
+					>
 						Week {selectedWeekNumber}
 					</div>
 				</div>
@@ -662,7 +769,7 @@ $effect(() => {
 									<p class="mt-1 text-lg font-semibold text-white">
 										{teamLabel(game, 'home')}
 									</p>
-									{#if game.status === 'final' && game.winner}
+								{#if gameIsFinal(game) && game.winner}
 										<p class="mt-2 text-xs text-emerald-200">
 											Final: {game.winner === 'home' ? 'W' : 'L'}
 										</p>
@@ -681,7 +788,7 @@ $effect(() => {
 									<p class="mt-1 text-lg font-semibold text-white">
 										{teamLabel(game, 'away')}
 									</p>
-									{#if game.status === 'final' && game.winner}
+									{#if gameIsFinal(game) && game.winner}
 										<p class="mt-2 text-xs text-emerald-200">
 											Final: {game.winner === 'away' ? 'W' : 'L'}
 										</p>
@@ -741,7 +848,7 @@ $effect(() => {
 						<li class="flex items-center justify-between">
 							<span class="text-slate-200">Final games</span>
 							<span class="font-semibold text-emerald-300">
-								{gamesView.filter((game) => game.status === 'final').length}
+								{gamesView.filter((game) => gameIsFinal(game)).length}
 							</span>
 						</li>
 						<li class="flex items-center justify-between">
@@ -812,17 +919,22 @@ $effect(() => {
 						Game
 					</div>
 					{#each members as member (member.id)}
-						<div class="family-grid__header rounded-md bg-slate-800/90 text-center text-slate-100 uppercase">
+						<div
+							class="family-grid__header rounded-md bg-slate-800/90 text-center text-slate-100 uppercase"
+						>
 							{member.name}
 						</div>
 					{/each}
 
 					{#each gamesView as game (game.id)}
-						<div class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100">
+						<div
+							class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100"
+						>
 							{teamNameOnly(game, 'home')} vs {teamNameOnly(game, 'away')}
 						</div>
 						{#each members as member (member.id)}
-							{@const memberPick = game.picks.find((entry) => entry.memberId === member.id) ?? null}
+					{@const memberPick = game.picks.find((entry) => entry.memberId === member.id) ?? null}
+							{@const outcome = pickOutcome(game, memberPick)}
 							<div class={cellClasses(game, member.id, memberPick)}>
 								{#if memberPick}
 									{teamLabel(game, memberPick.chosenSide as 'home' | 'away')}
@@ -837,10 +949,12 @@ $effect(() => {
 		</section>
 	</div>
 {/if}
+*** End of File
 
 <style>
 	.family-grid {
-		grid-template-columns: minmax(120px, 1.2fr)
+		grid-template-columns:
+			minmax(120px, 1.2fr)
 			repeat(var(--family-grid-members, 1), minmax(88px, 0.8fr));
 		font-size: 0.7rem;
 	}
@@ -871,7 +985,8 @@ $effect(() => {
 
 	@media (max-width: 1024px) {
 		.family-grid {
-			grid-template-columns: minmax(110px, 1.1fr)
+			grid-template-columns:
+				minmax(110px, 1.1fr)
 				repeat(var(--family-grid-members, 1), minmax(80px, 0.75fr));
 			font-size: 0.66rem;
 		}
@@ -885,7 +1000,8 @@ $effect(() => {
 
 	@media (max-width: 768px) {
 		.family-grid {
-			grid-template-columns: minmax(100px, 1.05fr)
+			grid-template-columns:
+				minmax(100px, 1.05fr)
 				repeat(var(--family-grid-members, 1), minmax(72px, 0.7fr));
 			font-size: 0.62rem;
 		}
@@ -901,7 +1017,8 @@ $effect(() => {
 
 	@media (max-width: 640px) {
 		.family-grid {
-			grid-template-columns: minmax(94px, 1fr)
+			grid-template-columns:
+				minmax(94px, 1fr)
 				repeat(var(--family-grid-members, 1), minmax(65px, 0.66fr));
 			font-size: 0.58rem;
 		}
@@ -913,4 +1030,3 @@ $effect(() => {
 		}
 	}
 </style>
-*** End of File

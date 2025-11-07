@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
-	import type { GamePick } from '$lib/types';
 	import { formatRecord } from '$lib/utils/records';
 
 	const props = $props();
@@ -13,6 +12,7 @@ const weeks = $derived(data.weeks ?? []);
 const activeWeek = $derived(data.activeWeek ?? null);
 const members = $derived(data.members ?? []);
 const games = $derived(data.games ?? []);
+const gamesView = $derived(games.map((game) => enrichGame(game)));
 
 const STORAGE_SEASON_KEY = 'bdp:selectedSeason';
 const STORAGE_WEEK_KEY = 'bdp:selectedWeek';
@@ -39,8 +39,8 @@ let restoredFromStorage = $state(false);
 	const totalLosses = $derived(
 		members.reduce((acc, member) => acc + member.seasonRecord.losses, 0)
 	);
-	const finalGameCount = $derived(games.filter((game) => game.status === 'final').length);
-	const allPicks = $derived(games.flatMap((game) => game.picks));
+	const finalGameCount = $derived(gamesView.filter((game) => gameIsFinal(game)).length);
+	const allPicks = $derived(gamesView.flatMap((game) => game.picks));
 	const pendingPickCount = $derived(allPicks.filter((pick) => pick.status === 'pending').length);
 	const correctPickCount = $derived(allPicks.filter((pick) => pick.status === 'correct').length);
 	const incorrectPickCount = $derived(
@@ -54,16 +54,16 @@ let selectedWeekNumber = $state(initialWeekNumber);
 let picksPageHref = $state('/picks');
 
 $effect(() => {
-	if (games.some((game) => game.status === 'in-progress')) {
+	if (gamesView.some((game) => gameInProgress(game))) {
 		weekStatus = 'In Progress';
 		return;
 	}
-		if (games.some((game) => game.status === 'final')) {
-			weekStatus = 'Final';
-			return;
-		}
-		weekStatus = 'Upcoming';
-	});
+	if (gamesView.some((game) => gameIsFinal(game))) {
+		weekStatus = 'Final';
+		return;
+	}
+	weekStatus = 'Upcoming';
+});
 
 $effect(() => {
 	const parsed = Number.parseInt(selectedWeekValue, 10);
@@ -158,6 +158,82 @@ $effect(() => {
 		});
 	}
 
+	function normalizeStatus(status?: string | null) {
+		return (status ?? '').toString().toLowerCase();
+	}
+
+	function normalizeGameStatus(status?: string | null): 'scheduled' | 'in-progress' | 'final' {
+		const normalized = normalizeStatus(status);
+		if (normalized === 'in-progress') return 'in-progress';
+		if (normalized === 'final') return 'final';
+		return 'scheduled';
+	}
+
+	function normalizePickStatus(
+		status?: string | null
+	): 'pending' | 'correct' | 'incorrect' | null {
+		if (!status) return null;
+		const value = status.toString().trim().toLowerCase();
+		if (value === 'pending' || value === 'correct' || value === 'incorrect') {
+			return value;
+		}
+		return null;
+	}
+
+	function normalizeSide(side?: string | null): 'home' | 'away' | null {
+		const normalized = (side ?? '').toString().toLowerCase();
+		if (normalized === 'home' || normalized === 'away') {
+			return normalized;
+		}
+		return null;
+	}
+
+	function deriveWinner(game: GameType): 'home' | 'away' | null {
+		const direct = normalizeSide(game.winner);
+		if (direct) {
+			return direct;
+		}
+		const homeScore = game.homeScore;
+		const awayScore = game.awayScore;
+		if (homeScore == null || awayScore == null) {
+			return null;
+		}
+		if (homeScore === awayScore) {
+			return null;
+		}
+		return homeScore > awayScore ? 'home' : 'away';
+	}
+
+	function enrichGame(game: GameType): GameType {
+		const status = normalizeGameStatus(game.status);
+		const winner = deriveWinner(game);
+		const base = {
+			...game,
+			status,
+			winner
+		};
+		return {
+			...base,
+			picks: (game.picks ?? []).map((pick) => {
+				const side = normalizeSide(pick.chosenSide) ?? 'home';
+				const normalized = normalizePickStatus(pick.status);
+				return {
+					...pick,
+					chosenSide: side,
+					status: normalized ?? determinePickStatus(base, side)
+				};
+			})
+		};
+	}
+
+	function gameIsFinal(game: GameType) {
+		return game.status === 'final';
+	}
+
+	function gameInProgress(game: GameType) {
+		return game.status === 'in-progress';
+	}
+
 	function teamLabel(game: GameType, side: 'home' | 'away') {
 		const team = side === 'home' ? game.homeTeam : game.awayTeam;
 		if (!team) {
@@ -174,37 +250,48 @@ $effect(() => {
 	}
 
 	function winnerLabel(game: GameType) {
-		if (!game.winner) return null;
-		const side = game.winner === 'home' ? 'home' : 'away';
-		const team = side === 'home' ? game.homeTeam : game.awayTeam;
+		const winner = deriveWinner(game);
+		if (!winner) return null;
+		const team = winner === 'home' ? game.homeTeam : game.awayTeam;
 		if (!team) {
-			return side === 'home' ? 'Home Team' : 'Away Team';
+			return winner === 'home' ? 'Home Team' : 'Away Team';
 		}
-		return team.name ?? (side === 'home' ? 'Home Team' : 'Away Team');
+		return team.name ?? (winner === 'home' ? 'Home Team' : 'Away Team');
 	}
 
-	function cellClasses(pickStatus: 'pending' | 'correct' | 'incorrect', hasPick: boolean) {
+	function pickOutcome(
+		game: GameType,
+		pick: GameType['picks'][number] | null
+	): 'win' | 'loss' | 'pending' | 'none' {
+		if (!pick) return 'none';
+		const winner = deriveWinner(game);
+		if (!winner || !gameIsFinal(game)) {
+			return 'pending';
+		}
+		return pick.chosenSide === winner ? 'win' : 'loss';
+	}
+
+	function cellClasses(outcome: 'win' | 'loss' | 'pending' | 'none', hasPick: boolean) {
 		const classes = [
 			'family-grid__cell',
 			'rounded-md',
 			'border',
-			'border-slate-700',
-			'bg-slate-900/80',
+			'text-white',
 			'text-center',
-			'text-slate-200',
 			'font-medium',
 			'transition-colors',
 			'duration-150'
 		];
 
-		if (!hasPick) {
-			classes.push('text-slate-400', 'italic');
-		}
-
-		if (pickStatus === 'correct') {
-			classes.push('bg-emerald-600/30', 'border-emerald-400', 'text-emerald-50');
-		} else if (pickStatus === 'incorrect') {
-			classes.push('bg-rose-600/30', 'border-rose-400', 'text-rose-50');
+		if (outcome === 'win') {
+			classes.push('bg-emerald-500/25', 'border-emerald-400/70', 'font-semibold');
+		} else if (outcome === 'loss') {
+			classes.push('bg-rose-500/25', 'border-rose-400/70', 'font-semibold');
+		} else {
+			classes.push('bg-slate-900/60', 'border-slate-700/70');
+			if (!hasPick) {
+				classes.push('italic', 'text-white/70');
+			}
 		}
 
 		return classes.join(' ');
@@ -219,6 +306,17 @@ $effect(() => {
 			return team.code.toUpperCase();
 		}
 		return teamLabel(game, side);
+	}
+
+	function determinePickStatus(
+		game: GameType,
+		side: 'home' | 'away'
+	): 'pending' | 'correct' | 'incorrect' {
+		const winner = deriveWinner(game);
+		if (gameIsFinal(game) && winner) {
+			return winner === side ? 'correct' : 'incorrect';
+		}
+		return 'pending';
 	}
 </script>
 
@@ -343,20 +441,14 @@ $effect(() => {
 					</div>
 				{/each}
 
-				{#each games as game (game.id)}
+				{#each gamesView as game (game.id)}
 					<div class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100">
 						{teamNameOnly(game, 'home')} vs {teamNameOnly(game, 'away')}
 					</div>
 					{#each members as member (member.id)}
 						{@const memberPick = game.picks.find((entry) => entry.memberId === member.id) ?? null}
-						{@const pickStatus =
-							memberPick?.status ??
-							(game.status === 'final' && memberPick
-								? game.winner === memberPick.chosenSide
-									? 'correct'
-									: 'incorrect'
-								: 'pending')}
-						<div class={cellClasses(pickStatus as 'pending' | 'correct' | 'incorrect', !!memberPick)}>
+						{@const outcome = pickOutcome(game, memberPick ?? null)}
+						<div class={cellClasses(outcome, !!memberPick)}>
 							{#if memberPick}
 								{teamLabel(game, memberPick.chosenSide)}
 							{:else}
@@ -418,7 +510,7 @@ $effect(() => {
 			<ul class="space-y-3 text-sm text-slate-200">
 				<li class="flex items-center justify-between">
 					<span>Games on the slate</span>
-					<strong class="text-white">{games.length}</strong>
+					<strong class="text-white">{gamesView.length}</strong>
 				</li>
 				<li class="flex items-center justify-between">
 					<span>Finals recorded</span>
@@ -526,7 +618,7 @@ $effect(() => {
 	>
 		<h2 class="text-lg font-semibold text-white">Week {activeWeek.number} Matchups</h2>
 		<div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-			{#each games as game (game.id)}
+				{#each gamesView as game (game.id)}
 				<div
 					class="space-y-3 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 shadow-sm shadow-black/30"
 				>
