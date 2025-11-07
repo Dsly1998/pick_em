@@ -80,6 +80,7 @@ func (s *Server) routes() {
 		r.Post("/seasons/{seasonID}/weeks/{weekNumber}/picks", s.handleUpsertPick)
 		r.Delete("/seasons/{seasonID}/weeks/{weekNumber}/picks", s.handleDeletePick)
 		r.Post("/seasons/{seasonID}/weeks/{weekNumber}/tie-breaker", s.handleUpsertTieBreaker)
+		r.Post("/seasons/{seasonID}/weeks/{weekNumber}/games/{gameKey}/winner", s.handleSetGameWinner)
 		r.Post("/seasons/{seasonID}/weeks/{weekNumber}/winner", s.handleDeclareWinner)
 		r.Post("/seasons/{seasonID}/weeks/{weekNumber}/sync", s.handleSyncWeek)
 	})
@@ -292,6 +293,55 @@ func (s *Server) handleUpsertTieBreaker(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+func (s *Server) handleSetGameWinner(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	seasonID, weekNumber, err := parseSeasonWeekParams(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	gameKey := chi.URLParam(r, "gameKey")
+	if strings.TrimSpace(gameKey) == "" {
+		writeError(w, http.StatusBadRequest, errors.New("gameKey is required"))
+		return
+	}
+
+	week, err := s.store.GetWeek(ctx, seasonID, weekNumber)
+	if err != nil {
+		status := http.StatusInternalServerError
+		switch {
+		case errors.Is(err, store.ErrSeasonNotFound), errors.Is(err, store.ErrWeekNotFound):
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err)
+		return
+	}
+
+	var req setGameWinnerRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	winner := ""
+	if req.Winner != nil {
+		winner = *req.Winner
+	}
+
+	game, err := s.store.UpdateGameWinner(ctx, week.ID, gameKey, winner)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, store.ErrGameNotFound) {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"game": game})
+}
+
 func (s *Server) handleDeclareWinner(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	seasonID, weekNumber, err := parseSeasonWeekParams(r)
@@ -456,6 +506,10 @@ type pickRequest struct {
 type tieBreakerRequest struct {
 	MemberID string `json:"memberId"`
 	Points   int    `json:"points"`
+}
+
+type setGameWinnerRequest struct {
+	Winner *string `json:"winner"`
 }
 
 type declareWinnerRequest struct {

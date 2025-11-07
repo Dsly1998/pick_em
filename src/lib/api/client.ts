@@ -217,3 +217,18 @@ export async function syncWeek(
 		{ method: 'POST' }
 	);
 }
+
+export async function setGameWinner(
+	fetchFn: typeof fetch,
+	params: { seasonId: string; weekNumber: number; gameKey: string; winner: 'home' | 'away' | null }
+) {
+	const encodedKey = encodeURIComponent(params.gameKey);
+	return apiFetch<{ game: PageDataResponse['games'][number] }>(
+		fetchFn,
+		`/api/seasons/${params.seasonId}/weeks/${params.weekNumber}/games/${encodedKey}/winner`,
+		{
+			method: 'POST',
+			body: JSON.stringify({ winner: params.winner ?? null })
+		}
+	);
+}

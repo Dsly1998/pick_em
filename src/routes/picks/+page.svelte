@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import {
-		clearPick,
-		declareWeekWinner,
-		syncWeek,
-		upsertPick,
-		upsertTieBreaker
-	} from '$lib/api/client';
+	clearPick,
+	declareWeekWinner,
+	setGameWinner,
+	syncWeek,
+	upsertPick,
+	upsertTieBreaker
+} from '$lib/api/client';
 	import type { PageData } from './$types';
 	import type { Game } from '$lib/types';
 
@@ -21,6 +22,16 @@
 	const games = $derived(data.games ?? []);
 	let gamesView = $state<Game[]>([]);
 	const weekResult = $derived(data.weekResult ?? null);
+	let manualResultGame = $state<Game | null>(null);
+	let manualResultSelection = $state<'home' | 'away' | null>(null);
+	let manualResultSaving = $state(false);
+	let manualResultError = $state('');
+	const manualResultOriginalWinner = $derived(
+		manualResultGame ? manualResultGame.winner ?? null : null
+	);
+	const manualResultChanged = $derived(
+		manualResultGame ? manualResultSelection !== manualResultOriginalWinner : false
+	);
 
 	const commissionerName = 'Brad';
 	const commissioner = $derived(members.find((member) => member.isCommissioner) ?? null);
@@ -504,6 +515,47 @@
 		}
 	}
 
+	function openGameResultEditor(game: Game) {
+		manualResultGame = game;
+		manualResultSelection = game.winner ?? null;
+		manualResultError = '';
+	}
+
+	function closeGameResultEditor() {
+		manualResultGame = null;
+		manualResultSelection = null;
+		manualResultError = '';
+	}
+
+	function selectManualWinner(side: 'home' | 'away') {
+		manualResultSelection = side;
+	}
+
+	function clearManualResultSelection() {
+		manualResultSelection = null;
+	}
+
+	async function saveManualGameResult() {
+		if (!manualResultGame || !season || !activeWeek) return;
+		manualResultSaving = true;
+		manualResultError = '';
+		try {
+			await setGameWinner(fetch, {
+				seasonId: season.id,
+				weekNumber: activeWeek.number,
+				gameKey: manualResultGame.gameKey,
+				winner: manualResultSelection
+			});
+			applyLocalWinner(manualResultGame.gameKey, manualResultSelection);
+			closeGameResultEditor();
+		} catch (error) {
+			console.error(error);
+			manualResultError = 'Unable to update game result. Please try again.';
+		} finally {
+			manualResultSaving = false;
+		}
+	}
+
 	function pickButtonClasses({
 		game,
 		side,
@@ -550,6 +602,39 @@
 			} else if (game.winner) {
 				classes.push('border-rose-400/60', 'bg-rose-500/20', 'text-rose-100/90');
 			}
+		}
+
+		return classes.join(' ');
+	}
+
+	function resultSelectorClasses(isActive: boolean) {
+		const classes = [
+			'flex',
+			'w-full',
+			'flex-col',
+			'items-start',
+			'justify-center',
+			'rounded-2xl',
+			'border',
+			'border-slate-700',
+			'bg-slate-900',
+			'p-4',
+			'text-left',
+			'text-slate-100',
+			'transition',
+			'duration-150',
+			'hover:border-emerald-400/60',
+			'hover:bg-slate-800'
+		];
+
+		if (isActive) {
+			classes.push(
+				'border-emerald-400',
+				'bg-emerald-500/25',
+				'text-emerald-50',
+				'shadow-lg',
+				'shadow-emerald-600/30'
+			);
 		}
 
 		return classes.join(' ');
@@ -639,6 +724,25 @@
 				});
 			}
 			next.picks = picks;
+			return next;
+		});
+	}
+
+	function applyLocalWinner(gameKey: string, winner: 'home' | 'away' | null) {
+		gamesView = gamesView.map((game) => {
+			if (game.gameKey !== gameKey) {
+				return game;
+			}
+			const resolvedWinner = winner ?? null;
+			const next: Game = {
+				...game,
+				status: resolvedWinner ? 'final' : game.status,
+				winner: resolvedWinner
+			};
+			next.picks = game.picks.map((pick) => ({
+				...pick,
+				status: determinePickStatus(next, pick.chosenSide)
+			}));
 			return next;
 		});
 	}
@@ -736,25 +840,34 @@
 				<div class="space-y-5">
 					{#each gamesView as game (game.id)}
 						<article class="space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-4">
-							<header
-								class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-200"
+					<header
+						class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-200"
+					>
+						<div class="flex items-center gap-3">
+							<span
+								class="rounded-full border border-emerald-400/50 px-2 py-1 tracking-wide text-emerald-200 uppercase"
 							>
-								<div class="flex items-center gap-3">
-									<span
-										class="rounded-full border border-emerald-400/50 px-2 py-1 tracking-wide text-emerald-200 uppercase"
-									>
-										{game.status}
-									</span>
-									<span>{formattedDate(game.kickoff)}</span>
-								</div>
-								{#if game.channel}
-									<span
-										class="rounded-full border border-slate-600 px-2 py-1 tracking-wide text-slate-100 uppercase"
-									>
-										{game.channel}
-									</span>
-								{/if}
-							</header>
+								{game.status}
+							</span>
+							<span>{formattedDate(game.kickoff)}</span>
+						</div>
+						<div class="flex items-center gap-2">
+							{#if game.channel}
+								<span
+									class="rounded-full border border-slate-600 px-2 py-1 tracking-wide text-slate-100 uppercase"
+								>
+									{game.channel}
+								</span>
+							{/if}
+							<button
+								type="button"
+								class="rounded-full border border-emerald-400/40 px-3 py-1 text-[10px] font-semibold tracking-wide text-emerald-200 uppercase transition hover:border-emerald-300 hover:bg-emerald-400/10"
+								onclick={() => openGameResultEditor(game)}
+							>
+								{game.winner ? 'Edit Result' : 'Set Result'}
+							</button>
+						</div>
+					</header>
 							<div class="grid gap-3 sm:grid-cols-2">
 								<button
 									type="button"
@@ -947,6 +1060,103 @@
 				</div>
 			</div>
 		</section>
+
+		{#if manualResultGame}
+			<div class="fixed inset-0 z-50 flex items-center justify-center px-4 py-10">
+				<button
+					type="button"
+					class="absolute inset-0 bg-black/70"
+					aria-label="Dismiss set winner dialog"
+					onclick={() => {
+						if (!manualResultSaving) {
+							closeGameResultEditor();
+						}
+					}}
+					disabled={manualResultSaving}
+				></button>
+				<div
+					class="relative z-10 w-full max-w-xl space-y-5 rounded-3xl border border-emerald-500/30 bg-slate-950/95 p-6 shadow-2xl shadow-black/50"
+				>
+					<div class="flex items-start justify-between gap-4">
+						<div>
+							<p class="text-xs font-semibold tracking-[0.3em] text-emerald-300 uppercase">
+								Set Winner
+							</p>
+							<h3 class="mt-2 text-2xl font-semibold text-white">
+								{teamLabel(manualResultGame, 'away')} at {teamLabel(manualResultGame, 'home')}
+							</h3>
+							<p class="text-sm text-slate-400">
+								{formattedDate(manualResultGame.kickoff)} · {manualResultGame.gameKey}
+							</p>
+						</div>
+						<button
+							type="button"
+							class="rounded-full border border-slate-700 px-2 py-1 text-slate-400 transition hover:text-white"
+							onclick={() => {
+							if (!manualResultSaving) {
+								closeGameResultEditor();
+							}
+						}}
+							aria-label="Close set winner dialog"
+						>
+							X
+						</button>
+					</div>
+					<p class="text-sm text-slate-300">
+						Pick the winner when the feed misses a final. We'll mark this game as final right away and
+						re-score everyone's picks.
+					</p>
+					<div class="grid gap-3 sm:grid-cols-2">
+						<button
+							type="button"
+							class={resultSelectorClasses(manualResultSelection === 'home')}
+							onclick={() => selectManualWinner('home')}
+						>
+							<p class="text-xs tracking-wide text-slate-400 uppercase">Home</p>
+							<p class="mt-1 text-lg font-semibold text-white">{teamLabel(manualResultGame, 'home')}</p>
+						</button>
+						<button
+							type="button"
+							class={resultSelectorClasses(manualResultSelection === 'away')}
+							onclick={() => selectManualWinner('away')}
+						>
+							<p class="text-xs tracking-wide text-slate-400 uppercase">Away</p>
+							<p class="mt-1 text-lg font-semibold text-white">{teamLabel(manualResultGame, 'away')}</p>
+						</button>
+					</div>
+					{#if manualResultError}
+						<p class="text-sm text-rose-300">{manualResultError}</p>
+					{/if}
+					<div class="flex flex-wrap items-center gap-3 pt-2">
+						<button
+							type="button"
+							class="rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold tracking-wide text-slate-100 uppercase transition hover:border-slate-400"
+							onclick={clearManualResultSelection}
+							disabled={!manualResultSelection && !manualResultOriginalWinner}
+						>
+							Clear Result
+						</button>
+						<div class="flex-1"></div>
+						<button
+							type="button"
+							class="rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold tracking-wide text-slate-200 uppercase transition hover:border-slate-500"
+							onclick={closeGameResultEditor}
+							disabled={manualResultSaving}
+						>
+							Cancel
+						</button>
+						<button
+							type="button"
+							class="rounded-full border border-emerald-500/50 bg-emerald-500 px-5 py-2 text-xs font-semibold tracking-wide text-emerald-950 uppercase shadow hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+							onclick={saveManualGameResult}
+							disabled={!manualResultChanged || manualResultSaving}
+						>
+							{manualResultSaving ? 'Saving…' : 'Save Result'}
+						</button>
+					</div>
+				</div>
+			</div>
+		{/if}
 	</div>
 {/if}
 *** End of File

@@ -19,6 +19,7 @@ import (
 var (
 	ErrSeasonNotFound = errors.New("store: season not found")
 	ErrWeekNotFound   = errors.New("store: week not found")
+	ErrGameNotFound   = errors.New("store: game not found")
 	validSides        = map[string]struct{}{
 		"home": {},
 		"away": {},
@@ -613,6 +614,77 @@ func (s *Store) DeclareWeekWinner(ctx context.Context, seasonWeekID, winnerMembe
 	return &result, nil
 }
 
+func (s *Store) UpdateGameWinner(ctx context.Context, seasonWeekID, gameKey, winner string) (*models.Game, error) {
+	gameKey = strings.TrimSpace(gameKey)
+	if gameKey == "" {
+		return nil, fmt.Errorf("store: update game winner requires game key")
+	}
+
+	winner = strings.ToLower(strings.TrimSpace(winner))
+	if winner != "" {
+		if _, ok := validSides[winner]; !ok {
+			return nil, fmt.Errorf("store: invalid winner %q", winner)
+		}
+	}
+
+	row := s.pool.QueryRow(ctx, `
+		update games
+		set
+			winner = nullif($3, ''),
+			status = case when $3 <> '' then 'final' else status end,
+			updated_at = now()
+		where season_week_id = $1 and game_key = $2
+		returning id, game_key, kickoff, status, channel, location, home_team, away_team, home_score, away_score, winner
+	`, seasonWeekID, gameKey, winner)
+
+	var (
+		game       models.Game
+		kickoff    *time.Time
+		channel    *string
+		location   *string
+		homeTeamB  []byte
+		awayTeamB  []byte
+		homeScore  *int
+		awayScore  *int
+		winnerText *string
+	)
+
+	if err := row.Scan(
+		&game.ID,
+		&game.GameKey,
+		&kickoff,
+		&game.Status,
+		&channel,
+		&location,
+		&homeTeamB,
+		&awayTeamB,
+		&homeScore,
+		&awayScore,
+		&winnerText,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrGameNotFound
+		}
+		return nil, fmt.Errorf("store: update game winner: %w", err)
+	}
+
+	game.Kickoff = kickoff
+	game.Channel = derefString(channel)
+	game.Location = derefString(location)
+	if err := json.Unmarshal(homeTeamB, &game.HomeTeam); err != nil {
+		return nil, fmt.Errorf("store: decode home team for game %s: %w", gameKey, err)
+	}
+	if err := json.Unmarshal(awayTeamB, &game.AwayTeam); err != nil {
+		return nil, fmt.Errorf("store: decode away team for game %s: %w", gameKey, err)
+	}
+	game.HomeScore = homeScore
+	game.AwayScore = awayScore
+	game.Winner = derefString(winnerText)
+	game.Picks = []models.GamePick{}
+
+	return &game, nil
+}
+
 func nullIfEmpty(value string) interface{} {
 	if strings.TrimSpace(value) == "" {
 		return nil
@@ -679,14 +751,14 @@ func (s *Store) SyncWeekFromSnapshots(ctx context.Context, season models.Season,
 			do update set
 				season_week_id = excluded.season_week_id,
 				kickoff = excluded.kickoff,
-				status = excluded.status,
+				status = case when games.status = 'final' then games.status else excluded.status end,
 				channel = excluded.channel,
 				location = excluded.location,
 				home_team = excluded.home_team,
 				away_team = excluded.away_team,
 				home_score = excluded.home_score,
 				away_score = excluded.away_score,
-				winner = excluded.winner,
+				winner = coalesce(excluded.winner, games.winner),
 				sportsdata_payload = excluded.sportsdata_payload,
 				updated_at = now()
 		`,
