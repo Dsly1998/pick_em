@@ -477,7 +477,7 @@ $effect(() => {
 				</li>
 				<li class="flex items-center gap-3">
 					<span class="inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
-					Tie-breakers lock each week; lowest differential wins the Big Dog bone.
+					Tie-breakers lock each week; lowest differential wins the Big Dog.
 				</li>
 				<li class="flex items-center gap-3">
 					<span class="inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
