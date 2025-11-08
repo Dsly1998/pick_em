@@ -31,6 +31,10 @@ func Run(ctx context.Context, pool *pgxpool.Pool, cfg config.Config) error {
 		return err
 	}
 
+	if err := ensureSeasonSettings(ctx, pool, seasonID); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -109,6 +113,19 @@ func ensureSeasonWeeks(ctx context.Context, pool *pgxpool.Pool, seasonID string)
 		`, seasonID, week, label); err != nil {
 			return fmt.Errorf("bootstrap: ensure week %d: %w", week, err)
 		}
+	}
+	return nil
+}
+
+func ensureSeasonSettings(ctx context.Context, pool *pgxpool.Pool, seasonID string) error {
+	_, err := pool.Exec(ctx, `
+		insert into season_settings (season_id, current_week)
+		values ($1, 1)
+		on conflict (season_id)
+		do nothing
+	`, seasonID)
+	if err != nil {
+		return fmt.Errorf("bootstrap: ensure season settings: %w", err)
 	}
 	return nil
 }

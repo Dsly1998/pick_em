@@ -113,6 +113,17 @@ export async function fetchWeeks(
 	return weeks;
 }
 
+export async function fetchCurrentWeek(
+	fetchFn: typeof fetch,
+	seasonId: string
+): Promise<number | null> {
+	const { weekNumber } = await apiFetch<{ weekNumber: number }>(
+		fetchFn,
+		`/api/seasons/${seasonId}/weeks/current`
+	);
+	return weekNumber ?? null;
+}
+
 export async function fetchPageData(
 	fetchFn: typeof fetch,
 	seasonId: string,
@@ -232,3 +243,4 @@ export async function setGameWinner(
 		}
 	);
 }
+

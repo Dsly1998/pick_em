@@ -76,6 +76,7 @@ func (s *Server) routes() {
 	s.router.Route("/api", func(r chi.Router) {
 		r.Get("/seasons", s.handleListSeasons)
 		r.Get("/seasons/{seasonID}/weeks", s.handleListSeasonWeeks)
+		r.Get("/seasons/{seasonID}/weeks/current", s.handleGetCurrentWeek)
 		r.Get("/seasons/{seasonID}/weeks/{weekNumber}", s.handleGetPageData)
 		r.Post("/seasons/{seasonID}/weeks/{weekNumber}/picks", s.handleUpsertPick)
 		r.Delete("/seasons/{seasonID}/weeks/{weekNumber}/picks", s.handleDeletePick)
@@ -119,6 +120,27 @@ func (s *Server) handleListSeasonWeeks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"weeks": weeks})
+}
+
+func (s *Server) handleGetCurrentWeek(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	seasonID := chi.URLParam(r, "seasonID")
+	if strings.TrimSpace(seasonID) == "" {
+		writeError(w, http.StatusBadRequest, errors.New("seasonID is required"))
+		return
+	}
+
+	week, err := s.store.GetSeasonCurrentWeek(ctx, seasonID)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, store.ErrSeasonNotFound) {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"weekNumber": week})
 }
 
 func (s *Server) handleGetPageData(w http.ResponseWriter, r *http.Request) {

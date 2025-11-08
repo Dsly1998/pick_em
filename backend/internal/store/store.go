@@ -145,6 +145,28 @@ func (s *Store) GetSeason(ctx context.Context, seasonID string) (*models.Season,
 	return s.getSeason(ctx, seasonID)
 }
 
+func (s *Store) GetSeasonBySportsKey(ctx context.Context, sportsKey string) (*models.Season, error) {
+	sportsKey = strings.TrimSpace(sportsKey)
+	if sportsKey == "" {
+		return nil, fmt.Errorf("store: sports key is required")
+	}
+
+	row := s.pool.QueryRow(ctx, `
+		select id, label, season_year, sportsdata_season_key
+		from seasons
+		where sportsdata_season_key = $1
+	`, sportsKey)
+
+	var season models.Season
+	if err := row.Scan(&season.ID, &season.Label, &season.Year, &season.SportsDataSeasonKey); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrSeasonNotFound
+		}
+		return nil, fmt.Errorf("store: get season by key: %w", err)
+	}
+	return &season, nil
+}
+
 func (s *Store) listSeasonWeeks(ctx context.Context, seasonID string) ([]models.Week, error) {
 	rows, err := s.pool.Query(ctx, `
 		select id, number, label, starts_at, ends_at
@@ -166,6 +188,50 @@ func (s *Store) listSeasonWeeks(ctx context.Context, seasonID string) ([]models.
 		weeks = append(weeks, wk)
 	}
 	return weeks, rows.Err()
+}
+
+func (s *Store) GetSeasonCurrentWeek(ctx context.Context, seasonID string) (int, error) {
+	if _, err := s.getSeason(ctx, seasonID); err != nil {
+		return 0, err
+	}
+
+	row := s.pool.QueryRow(ctx, `
+		select current_week
+		from season_settings
+		where season_id = $1
+	`, seasonID)
+
+	var week int
+	if err := row.Scan(&week); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 1, nil
+		}
+		return 0, fmt.Errorf("store: get season current week: %w", err)
+	}
+	if week <= 0 {
+		return 1, nil
+	}
+	return week, nil
+}
+
+func (s *Store) SetSeasonCurrentWeek(ctx context.Context, seasonID string, weekNumber int) error {
+	if weekNumber <= 0 {
+		return fmt.Errorf("store: current week must be positive")
+	}
+
+	if _, err := s.getSeason(ctx, seasonID); err != nil {
+		return err
+	}
+
+	if _, err := s.pool.Exec(ctx, `
+		insert into season_settings (season_id, current_week)
+		values ($1, $2)
+		on conflict (season_id)
+		do update set current_week = excluded.current_week, updated_at = now()
+	`, seasonID, weekNumber); err != nil {
+		return fmt.Errorf("store: set current week: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) getWeekByNumber(ctx context.Context, seasonID string, weekNumber int) (*models.Week, error) {

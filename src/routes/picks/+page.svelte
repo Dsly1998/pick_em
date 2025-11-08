@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import {
-	clearPick,
-	declareWeekWinner,
-	setGameWinner,
-	syncWeek,
-	upsertPick,
-	upsertTieBreaker
-} from '$lib/api/client';
+		clearPick,
+		declareWeekWinner,
+		setGameWinner,
+		syncWeek,
+		upsertPick,
+		upsertTieBreaker
+	} from '$lib/api/client';
 	import type { PageData } from './$types';
 	import type { Game } from '$lib/types';
 
@@ -27,7 +27,7 @@
 	let manualResultSaving = $state(false);
 	let manualResultError = $state('');
 	const manualResultOriginalWinner = $derived(
-		manualResultGame ? manualResultGame.winner ?? null : null
+		manualResultGame ? (manualResultGame.winner ?? null) : null
 	);
 	const manualResultChanged = $derived(
 		manualResultGame ? manualResultSelection !== manualResultOriginalWinner : false
@@ -89,9 +89,9 @@
 		winnerNotes = weekResult?.notes ?? '';
 	});
 
-		$effect(() => {
-			gamesView = games.map((game) => prepareGame(game));
-		});
+	$effect(() => {
+		gamesView = games.map((game) => prepareGame(game));
+	});
 
 	const selectedMember = $derived(
 		members.find((member) => member.id === selectedMemberId) ?? members[0] ?? null
@@ -269,9 +269,7 @@
 		return 'scheduled';
 	}
 
-	function normalizePickStatus(
-		status?: string | null
-	): 'pending' | 'correct' | 'incorrect' | null {
+	function normalizePickStatus(status?: string | null): 'pending' | 'correct' | 'incorrect' | null {
 		if (!status) return null;
 		const value = status.toString().trim().toLowerCase();
 		if (value === 'pending' || value === 'correct' || value === 'incorrect') {
@@ -402,36 +400,35 @@
 
 		memberSelections[gameKey] = side;
 		selections = { ...selections, [selectedMemberId]: memberSelections };
-			try {
-				const { pick } = await upsertPick(fetch, {
-					seasonId: season.id,
-					weekNumber: activeWeek.number,
-					memberId: selectedMemberId,
-					gameKey,
-					side
+		try {
+			const { pick } = await upsertPick(fetch, {
+				seasonId: season.id,
+				weekNumber: activeWeek.number,
+				memberId: selectedMemberId,
+				gameKey,
+				side
+			});
+			if (pick) {
+				let sourceGame: Game | null = gamesView.find((entry) => entry.gameKey === gameKey) ?? null;
+				if (!sourceGame) {
+					const raw = games.find((entry) => entry.gameKey === gameKey) ?? null;
+					sourceGame = raw ? prepareGame(raw) : null;
+				}
+				const chosenSide = (pick.chosenSide as 'home' | 'away') ?? 'home';
+				let normalizedStatus = normalizePickStatus(pick.status);
+				if (!normalizedStatus) {
+					if (sourceGame && gameIsFinal(sourceGame)) {
+						normalizedStatus = sourceGame.winner === chosenSide ? 'correct' : 'incorrect';
+					} else {
+						normalizedStatus = 'pending';
+					}
+				}
+				applyLocalPick(gameKey, selectedMemberId, {
+					memberId: pick.memberId,
+					chosenSide,
+					status: normalizedStatus
 				});
-				if (pick) {
-					let sourceGame: Game | null =
-						gamesView.find((entry) => entry.gameKey === gameKey) ?? null;
-					if (!sourceGame) {
-						const raw = games.find((entry) => entry.gameKey === gameKey) ?? null;
-						sourceGame = raw ? prepareGame(raw) : null;
-					}
-					const chosenSide = (pick.chosenSide as 'home' | 'away') ?? 'home';
-					let normalizedStatus = normalizePickStatus(pick.status);
-					if (!normalizedStatus) {
-						if (sourceGame && gameIsFinal(sourceGame)) {
-							normalizedStatus = sourceGame.winner === chosenSide ? 'correct' : 'incorrect';
-						} else {
-							normalizedStatus = 'pending';
-						}
-					}
-					applyLocalPick(gameKey, selectedMemberId, {
-						memberId: pick.memberId,
-						chosenSide,
-						status: normalizedStatus
-					});
-				} else {
+			} else {
 				applyLocalPick(gameKey, selectedMemberId, {
 					memberId: selectedMemberId,
 					chosenSide: side
@@ -752,7 +749,7 @@
 	<section
 		class="rounded-3xl border border-slate-700 bg-slate-900/80 p-8 text-center text-slate-200 shadow-xl shadow-black/40"
 	>
-		<h1 class="text-3xl font-semibold text-white">Big Dog Control</h1>
+		<h1 class="text-3xl font-semibold text-white">Big Dawg Control</h1>
 		<p class="mt-3 text-sm">Add a season and weeks in Supabase to start managing picks.</p>
 	</section>
 {:else}
@@ -761,12 +758,12 @@
 			class="flex flex-col gap-6 rounded-3xl border border-emerald-500/40 bg-slate-900/85 p-6 shadow-xl shadow-emerald-900/40 sm:flex-row sm:items-center sm:justify-between sm:p-8"
 		>
 			<div class="space-y-3">
-				<p class="text-xs tracking-[0.4em] text-emerald-300/80 uppercase">Big Dog Control</p>
+				<p class="text-xs tracking-[0.4em] text-emerald-300/80 uppercase">Big Dawg Control</p>
 				<h1 class="text-3xl font-semibold text-white sm:text-4xl">
 					Set Week {selectedWeekNumber} Picks
 				</h1>
 				<p class="max-w-xl text-sm text-slate-100">
-					This is the official control room for the Big Dog Pool. {commissionerName} can lock in adjustments,
+					This is the official control room for the Big Dawg Pool. {commissionerName} can lock in adjustments,
 					but everyone can cue up their winners and tie breaker right here.
 				</p>
 			</div>
@@ -840,34 +837,34 @@
 				<div class="space-y-5">
 					{#each gamesView as game (game.id)}
 						<article class="space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-4">
-					<header
-						class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-200"
-					>
-						<div class="flex items-center gap-3">
-							<span
-								class="rounded-full border border-emerald-400/50 px-2 py-1 tracking-wide text-emerald-200 uppercase"
+							<header
+								class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-200"
 							>
-								{game.status}
-							</span>
-							<span>{formattedDate(game.kickoff)}</span>
-						</div>
-						<div class="flex items-center gap-2">
-							{#if game.channel}
-								<span
-									class="rounded-full border border-slate-600 px-2 py-1 tracking-wide text-slate-100 uppercase"
-								>
-									{game.channel}
-								</span>
-							{/if}
-							<button
-								type="button"
-								class="rounded-full border border-emerald-400/40 px-3 py-1 text-[10px] font-semibold tracking-wide text-emerald-200 uppercase transition hover:border-emerald-300 hover:bg-emerald-400/10"
-								onclick={() => openGameResultEditor(game)}
-							>
-								{game.winner ? 'Edit Result' : 'Set Result'}
-							</button>
-						</div>
-					</header>
+								<div class="flex items-center gap-3">
+									<span
+										class="rounded-full border border-emerald-400/50 px-2 py-1 tracking-wide text-emerald-200 uppercase"
+									>
+										{game.status}
+									</span>
+									<span>{formattedDate(game.kickoff)}</span>
+								</div>
+								<div class="flex items-center gap-2">
+									{#if game.channel}
+										<span
+											class="rounded-full border border-slate-600 px-2 py-1 tracking-wide text-slate-100 uppercase"
+										>
+											{game.channel}
+										</span>
+									{/if}
+									<button
+										type="button"
+										class="rounded-full border border-emerald-400/40 px-3 py-1 text-[10px] font-semibold tracking-wide text-emerald-200 uppercase transition hover:border-emerald-300 hover:bg-emerald-400/10"
+										onclick={() => openGameResultEditor(game)}
+									>
+										{game.winner ? 'Edit Result' : 'Set Result'}
+									</button>
+								</div>
+							</header>
 							<div class="grid gap-3 sm:grid-cols-2">
 								<button
 									type="button"
@@ -882,7 +879,7 @@
 									<p class="mt-1 text-lg font-semibold text-white">
 										{teamLabel(game, 'home')}
 									</p>
-								{#if gameIsFinal(game) && game.winner}
+									{#if gameIsFinal(game) && game.winner}
 										<p class="mt-2 text-xs text-emerald-200">
 											Final: {game.winner === 'home' ? 'W' : 'L'}
 										</p>
@@ -1046,7 +1043,7 @@
 							{teamNameOnly(game, 'home')} vs {teamNameOnly(game, 'away')}
 						</div>
 						{#each members as member (member.id)}
-					{@const memberPick = game.picks.find((entry) => entry.memberId === member.id) ?? null}
+							{@const memberPick = game.picks.find((entry) => entry.memberId === member.id) ?? null}
 							{@const outcome = pickOutcome(game, memberPick)}
 							<div class={cellClasses(game, member.id, memberPick)}>
 								{#if memberPick}
@@ -1093,18 +1090,18 @@
 							type="button"
 							class="rounded-full border border-slate-700 px-2 py-1 text-slate-400 transition hover:text-white"
 							onclick={() => {
-							if (!manualResultSaving) {
-								closeGameResultEditor();
-							}
-						}}
+								if (!manualResultSaving) {
+									closeGameResultEditor();
+								}
+							}}
 							aria-label="Close set winner dialog"
 						>
 							X
 						</button>
 					</div>
 					<p class="text-sm text-slate-300">
-						Pick the winner when the feed misses a final. We'll mark this game as final right away and
-						re-score everyone's picks.
+						Pick the winner when the feed misses a final. We'll mark this game as final right away
+						and re-score everyone's picks.
 					</p>
 					<div class="grid gap-3 sm:grid-cols-2">
 						<button
@@ -1113,7 +1110,9 @@
 							onclick={() => selectManualWinner('home')}
 						>
 							<p class="text-xs tracking-wide text-slate-400 uppercase">Home</p>
-							<p class="mt-1 text-lg font-semibold text-white">{teamLabel(manualResultGame, 'home')}</p>
+							<p class="mt-1 text-lg font-semibold text-white">
+								{teamLabel(manualResultGame, 'home')}
+							</p>
 						</button>
 						<button
 							type="button"
@@ -1121,7 +1120,9 @@
 							onclick={() => selectManualWinner('away')}
 						>
 							<p class="text-xs tracking-wide text-slate-400 uppercase">Away</p>
-							<p class="mt-1 text-lg font-semibold text-white">{teamLabel(manualResultGame, 'away')}</p>
+							<p class="mt-1 text-lg font-semibold text-white">
+								{teamLabel(manualResultGame, 'away')}
+							</p>
 						</button>
 					</div>
 					{#if manualResultError}

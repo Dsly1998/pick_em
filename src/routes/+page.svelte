@@ -6,23 +6,23 @@
 	const props = $props();
 	const data = $derived(props.data as PageData);
 
-const seasons = $derived(data.seasons ?? []);
-const season = $derived(data.season ?? null);
-const weeks = $derived(data.weeks ?? []);
-const activeWeek = $derived(data.activeWeek ?? null);
-const members = $derived(data.members ?? []);
-const games = $derived(data.games ?? []);
-const gamesView = $derived(games.map((game) => enrichGame(game)));
+	const seasons = $derived(data.seasons ?? []);
+	const season = $derived(data.season ?? null);
+	const weeks = $derived(data.weeks ?? []);
+	const activeWeek = $derived(data.activeWeek ?? null);
+	const members = $derived(data.members ?? []);
+	const games = $derived(data.games ?? []);
+	const gamesView = $derived(games.map((game) => enrichGame(game)));
 
-const STORAGE_SEASON_KEY = 'bdp:selectedSeason';
-const STORAGE_WEEK_KEY = 'bdp:selectedWeek';
+	const STORAGE_SEASON_KEY = 'bdp:selectedSeason';
+	const STORAGE_WEEK_KEY = 'bdp:selectedWeek';
 
-const initialSeasonId = data.selectedSeasonId ?? seasons[0]?.id ?? '';
-const initialWeekNumber = data.selectedWeekNumber ?? activeWeek?.number ?? weeks[0]?.number ?? 1;
+	const initialSeasonId = data.selectedSeasonId ?? seasons[0]?.id ?? '';
+	const initialWeekNumber = data.selectedWeekNumber ?? activeWeek?.number ?? weeks[0]?.number ?? 1;
 
-let selectedSeasonId = $state(initialSeasonId);
-let selectedWeekValue = $state(String(initialWeekNumber));
-let restoredFromStorage = $state(false);
+	let selectedSeasonId = $state(initialSeasonId);
+	let selectedWeekValue = $state(String(initialWeekNumber));
+	let restoredFromStorage = $state(false);
 
 	const sortedMembers = $derived(
 		[...members].sort(
@@ -49,85 +49,85 @@ let restoredFromStorage = $state(false);
 
 	const commissionerName = 'Brad';
 
-let weekStatus = $state('Upcoming');
-let selectedWeekNumber = $state(initialWeekNumber);
-let picksPageHref = $state('/picks');
+	let weekStatus = $state('Upcoming');
+	let selectedWeekNumber = $state(initialWeekNumber);
+	let picksPageHref = $state('/picks');
 
-$effect(() => {
-	if (gamesView.some((game) => gameInProgress(game))) {
-		weekStatus = 'In Progress';
-		return;
-	}
-	if (gamesView.some((game) => gameIsFinal(game))) {
-		weekStatus = 'Final';
-		return;
-	}
-	weekStatus = 'Upcoming';
-});
-
-$effect(() => {
-	const parsed = Number.parseInt(selectedWeekValue, 10);
-	selectedWeekNumber =
-		!Number.isNaN(parsed) && parsed > 0 ? parsed : (activeWeek?.number ?? weeks[0]?.number ?? 1);
-});
-
-$effect(() => {
-	if (!selectedSeasonId) {
-		picksPageHref = '/picks';
-		return;
-	}
-	const params = new URLSearchParams();
-	params.set('season', selectedSeasonId);
-	params.set('week', String(selectedWeekNumber));
-	picksPageHref = `/picks?${params.toString()}`;
-});
-
-$effect(() => {
-	if (typeof window === 'undefined' || restoredFromStorage) return;
-	const url = new URL(window.location.href);
-	const hasSeasonParam = url.searchParams.has('season');
-	const hasWeekParam = url.searchParams.has('week');
-
-	const storedSeason = window.localStorage.getItem(STORAGE_SEASON_KEY);
-	const storedWeek = window.localStorage.getItem(STORAGE_WEEK_KEY);
-
-	let seasonToUse = selectedSeasonId;
-	let weekToUse = selectedWeekValue;
-	let shouldNavigate = false;
-
-	if (!hasSeasonParam && storedSeason && seasons.some((season) => season.id === storedSeason)) {
-		seasonToUse = storedSeason;
-		if (selectedSeasonId !== storedSeason) {
-			selectedSeasonId = storedSeason;
+	$effect(() => {
+		if (gamesView.some((game) => gameInProgress(game))) {
+			weekStatus = 'In Progress';
+			return;
 		}
-		shouldNavigate = true;
-	}
-
-	if (!hasWeekParam && storedWeek) {
-		weekToUse = storedWeek;
-		if (selectedWeekValue !== storedWeek) {
-			selectedWeekValue = storedWeek;
+		if (gamesView.some((game) => gameIsFinal(game))) {
+			weekStatus = 'Final';
+			return;
 		}
-		shouldNavigate = true;
-	}
+		weekStatus = 'Upcoming';
+	});
 
-	restoredFromStorage = true;
+	$effect(() => {
+		const parsed = Number.parseInt(selectedWeekValue, 10);
+		selectedWeekNumber =
+			!Number.isNaN(parsed) && parsed > 0 ? parsed : (activeWeek?.number ?? weeks[0]?.number ?? 1);
+	});
 
-	if (shouldNavigate) {
-		const parsed = Number.parseInt(weekToUse, 10);
-		navigate(seasonToUse, Number.isNaN(parsed) ? undefined : parsed);
-	}
-});
+	$effect(() => {
+		if (!selectedSeasonId) {
+			picksPageHref = '/picks';
+			return;
+		}
+		const params = new URLSearchParams();
+		params.set('season', selectedSeasonId);
+		params.set('week', String(selectedWeekNumber));
+		picksPageHref = `/picks?${params.toString()}`;
+	});
 
-$effect(() => {
-	if (typeof window === 'undefined' || !restoredFromStorage) return;
-	if (selectedSeasonId) {
-		window.localStorage.setItem(STORAGE_SEASON_KEY, selectedSeasonId);
-	}
-	if (selectedWeekValue) {
-		window.localStorage.setItem(STORAGE_WEEK_KEY, selectedWeekValue);
-	}
-});
+	$effect(() => {
+		if (typeof window === 'undefined' || restoredFromStorage) return;
+		const url = new URL(window.location.href);
+		const hasSeasonParam = url.searchParams.has('season');
+		const hasWeekParam = url.searchParams.has('week');
+
+		const storedSeason = window.localStorage.getItem(STORAGE_SEASON_KEY);
+		const storedWeek = window.localStorage.getItem(STORAGE_WEEK_KEY);
+
+		let seasonToUse = selectedSeasonId;
+		let weekToUse = selectedWeekValue;
+		let shouldNavigate = false;
+
+		if (!hasSeasonParam && storedSeason && seasons.some((season) => season.id === storedSeason)) {
+			seasonToUse = storedSeason;
+			if (selectedSeasonId !== storedSeason) {
+				selectedSeasonId = storedSeason;
+			}
+			shouldNavigate = true;
+		}
+
+		if (!hasWeekParam && storedWeek) {
+			weekToUse = storedWeek;
+			if (selectedWeekValue !== storedWeek) {
+				selectedWeekValue = storedWeek;
+			}
+			shouldNavigate = true;
+		}
+
+		restoredFromStorage = true;
+
+		if (shouldNavigate) {
+			const parsed = Number.parseInt(weekToUse, 10);
+			navigate(seasonToUse, Number.isNaN(parsed) ? undefined : parsed);
+		}
+	});
+
+	$effect(() => {
+		if (typeof window === 'undefined' || !restoredFromStorage) return;
+		if (selectedSeasonId) {
+			window.localStorage.setItem(STORAGE_SEASON_KEY, selectedSeasonId);
+		}
+		if (selectedWeekValue) {
+			window.localStorage.setItem(STORAGE_WEEK_KEY, selectedWeekValue);
+		}
+	});
 
 	function navigate(seasonId: string, weekNumber?: number) {
 		const params = new URLSearchParams();
@@ -169,9 +169,7 @@ $effect(() => {
 		return 'scheduled';
 	}
 
-	function normalizePickStatus(
-		status?: string | null
-	): 'pending' | 'correct' | 'incorrect' | null {
+	function normalizePickStatus(status?: string | null): 'pending' | 'correct' | 'incorrect' | null {
 		if (!status) return null;
 		const value = status.toString().trim().toLowerCase();
 		if (value === 'pending' || value === 'correct' || value === 'incorrect') {
@@ -324,7 +322,7 @@ $effect(() => {
 	<section
 		class="rounded-3xl border border-slate-700 bg-slate-900/80 p-8 text-center text-slate-200 shadow-xl shadow-black/40"
 	>
-		<h1 class="text-3xl font-semibold text-white">Big Dog Pool</h1>
+		<h1 class="text-3xl font-semibold text-white">Big Dawg Pool</h1>
 		<p class="mt-3 text-sm">Add a season and weeks in Supabase to start tracking picks.</p>
 	</section>
 {:else}
@@ -333,9 +331,9 @@ $effect(() => {
 	>
 		<div class="flex flex-wrap items-start justify-between gap-6">
 			<div class="max-w-2xl space-y-3">
-				<p class="text-xs tracking-[0.45em] text-emerald-300/90 uppercase">The Big Dog Pool</p>
+				<p class="text-xs tracking-[0.45em] text-emerald-300/90 uppercase">The Big Dawg Pool</p>
 				<h1 class="text-4xl font-semibold text-white sm:text-5xl">
-					Big Dog Pool Grid · {season.year}
+					Big Dawg Pool Grid · {season.year}
 				</h1>
 				<p class="text-base text-slate-100/90 sm:text-lg">
 					{commissionerName} keeps the official ledger, but everyone can track the action right here.
@@ -436,13 +434,17 @@ $effect(() => {
 					Game
 				</div>
 				{#each members as member (member.id)}
-					<div class="family-grid__header rounded-md bg-slate-800/90 text-center text-slate-100 uppercase">
+					<div
+						class="family-grid__header rounded-md bg-slate-800/90 text-center text-slate-100 uppercase"
+					>
 						{member.name}
 					</div>
 				{/each}
 
 				{#each gamesView as game (game.id)}
-					<div class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100">
+					<div
+						class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100"
+					>
 						{teamNameOnly(game, 'home')} vs {teamNameOnly(game, 'away')}
 					</div>
 					{#each members as member (member.id)}
@@ -465,9 +467,9 @@ $effect(() => {
 		<article
 			class="space-y-5 rounded-3xl border border-slate-700 bg-slate-900/80 p-6 shadow-lg shadow-black/40"
 		>
-			<h2 class="text-3xl font-semibold text-white">Welcome to the Big Dog Pool</h2>
+			<h2 class="text-3xl font-semibold text-white">Welcome to the Big Dawg Pool</h2>
 			<p class="text-base text-slate-100/90 sm:text-lg">
-				The Big Dog Pool is the family tradition. {commissionerName} keeps scores honest while everyone
+				The Big Dawg Pool is the family tradition. {commissionerName} keeps scores honest while everyone
 				chases bragging rights, prime rib, and the weekly crown.
 			</p>
 			<ul class="space-y-3 text-sm text-slate-200">
@@ -477,7 +479,7 @@ $effect(() => {
 				</li>
 				<li class="flex items-center gap-3">
 					<span class="inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
-					Tie-breakers lock each week; lowest differential wins the Big Dog.
+					Tie-breakers lock each week; lowest differential wins the Big Dawg.
 				</li>
 				<li class="flex items-center gap-3">
 					<span class="inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
@@ -496,7 +498,7 @@ $effect(() => {
 					<div
 						class="rounded-2xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-100"
 					>
-						<p class="text-xs tracking-wide text-slate-300 uppercase">Current top dog</p>
+						<p class="text-xs tracking-wide text-slate-300 uppercase">Current top dawg</p>
 						<p class="mt-2 text-xl font-semibold text-white">{topMember.name}</p>
 						<p class="text-xs text-slate-400">{formatRecord(topMember.seasonRecord)} on the year</p>
 					</div>
@@ -618,7 +620,7 @@ $effect(() => {
 	>
 		<h2 class="text-lg font-semibold text-white">Week {activeWeek.number} Matchups</h2>
 		<div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-				{#each gamesView as game (game.id)}
+			{#each gamesView as game (game.id)}
 				<div
 					class="space-y-3 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 shadow-sm shadow-black/30"
 				>
@@ -654,7 +656,8 @@ $effect(() => {
 
 <style>
 	.family-grid {
-		grid-template-columns: minmax(120px, 1.2fr)
+		grid-template-columns:
+			minmax(120px, 1.2fr)
 			repeat(var(--family-grid-members, 1), minmax(88px, 0.8fr));
 		font-size: 0.7rem;
 	}
@@ -685,7 +688,8 @@ $effect(() => {
 
 	@media (max-width: 1024px) {
 		.family-grid {
-			grid-template-columns: minmax(110px, 1.1fr)
+			grid-template-columns:
+				minmax(110px, 1.1fr)
 				repeat(var(--family-grid-members, 1), minmax(80px, 0.75fr));
 			font-size: 0.66rem;
 		}
@@ -699,7 +703,8 @@ $effect(() => {
 
 	@media (max-width: 768px) {
 		.family-grid {
-			grid-template-columns: minmax(100px, 1.05fr)
+			grid-template-columns:
+				minmax(100px, 1.05fr)
 				repeat(var(--family-grid-members, 1), minmax(72px, 0.7fr));
 			font-size: 0.62rem;
 		}
@@ -715,7 +720,8 @@ $effect(() => {
 
 	@media (max-width: 640px) {
 		.family-grid {
-			grid-template-columns: minmax(94px, 1fr)
+			grid-template-columns:
+				minmax(94px, 1fr)
 				repeat(var(--family-grid-members, 1), minmax(65px, 0.66fr));
 			font-size: 0.58rem;
 		}

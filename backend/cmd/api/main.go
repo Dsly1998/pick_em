@@ -11,6 +11,7 @@ import (
 	"pickem/backend/internal/config"
 	"pickem/backend/internal/database"
 	httpapi "pickem/backend/internal/http"
+	"pickem/backend/internal/scheduler"
 	"pickem/backend/internal/store"
 )
 
@@ -37,10 +38,14 @@ func main() {
 		log.Fatalf("bootstrap: %v", err)
 	}
 
+	currentWeekJob := scheduler.NewCurrentWeekJob(cfg, st)
+	currentWeekJob.Start(ctx)
+	defer currentWeekJob.Stop()
+
 	srv := httpapi.New(cfg, st)
 
 	addr := ":" + cfg.Port
-	log.Printf("Big Dog Pool API listening on %s", addr)
+	log.Printf("Big Dawg Pool API listening on %s", addr)
 
 	if err := http.ListenAndServe(addr, srv.Handler()); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server error: %v", err)

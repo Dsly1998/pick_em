@@ -26,7 +26,7 @@
 				<span
 					class="inline-block h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(74,222,128,0.8)]"
 				></span>
-				Big Dog Pool
+				Big Dawg Pool
 			</a>
 			<div class="flex items-center gap-2 text-sm font-medium">
 				{#each links as link}
@@ -49,7 +49,7 @@
 
 	<footer class="border-t border-slate-800 bg-slate-900 py-6 text-xs text-slate-300">
 		<div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4">
-			<span>Big Dog Pool · Est. 2024 &mdash; {currentYear}</span>
+			<span>Big Dawg Pool · Est. 2024 &mdash; {currentYear}</span>
 			<span>Powered by SvelteKit · Supabase · SportsData.io</span>
 		</div>
 	</footer>

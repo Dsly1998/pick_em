@@ -81,6 +81,50 @@ func FetchScoresByWeek(ctx context.Context, httpClient *http.Client, baseURL, ap
 	return snapshots, nil
 }
 
+// FetchCurrentWeek returns the SportsData.io "current week" integer.
+func FetchCurrentWeek(ctx context.Context, httpClient *http.Client, baseURL, apiKey string) (int, error) {
+	if apiKey == "" {
+		return 0, errors.New("sportsdata: api key must be provided")
+	}
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	if baseURL == "" {
+		baseURL = defaultBaseURL
+	}
+
+	endpoint, err := currentWeekURL(baseURL, apiKey)
+	if err != nil {
+		return 0, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return 0, fmt.Errorf("sportsdata: build request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+
+	res, err := httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("sportsdata: request failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+		return 0, fmt.Errorf("sportsdata: unexpected status %d: %s", res.StatusCode, string(body))
+	}
+
+	var currentWeek int
+	if err := json.NewDecoder(res.Body).Decode(&currentWeek); err != nil {
+		return 0, fmt.Errorf("sportsdata: decode current week: %w", err)
+	}
+	if currentWeek <= 0 {
+		return 0, fmt.Errorf("sportsdata: invalid current week %d", currentWeek)
+	}
+	return currentWeek, nil
+}
+
 func scoresByWeekURL(baseURL, apiKey, seasonKey string, week int) (string, error) {
 	u, err := url.Parse(baseURL)
 	if err != nil {
@@ -93,19 +137,31 @@ func scoresByWeekURL(baseURL, apiKey, seasonKey string, week int) (string, error
 	return u.String(), nil
 }
 
+func currentWeekURL(baseURL, apiKey string) (string, error) {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return "", fmt.Errorf("sportsdata: invalid base url: %w", err)
+	}
+	u.Path = fmt.Sprintf("%s/scores/json/CurrentWeek", u.Path)
+	query := u.Query()
+	query.Set("key", apiKey)
+	u.RawQuery = query.Encode()
+	return u.String(), nil
+}
+
 type scoreResponse struct {
-	GameKey     string  `json:"GameKey"`
-	Season      int     `json:"Season"`
-	Week        int     `json:"Week"`
-	DateTime    *string `json:"DateTime"`
-	DateTimeUTC *string `json:"DateTimeUTC"`
-	Date        *string `json:"Date"`
-	Channel     *string `json:"Channel"`
-	HomeTeam    string  `json:"HomeTeam"`
-	AwayTeam    string  `json:"AwayTeam"`
-	HomeScore   *int    `json:"HomeScore"`
-	AwayScore   *int    `json:"AwayScore"`
-	Status      string  `json:"Status"`
+	GameKey     string          `json:"GameKey"`
+	Season      int             `json:"Season"`
+	Week        int             `json:"Week"`
+	DateTime    *string         `json:"DateTime"`
+	DateTimeUTC *string         `json:"DateTimeUTC"`
+	Date        *string         `json:"Date"`
+	Channel     *string         `json:"Channel"`
+	HomeTeam    string          `json:"HomeTeam"`
+	AwayTeam    string          `json:"AwayTeam"`
+	HomeScore   *int            `json:"HomeScore"`
+	AwayScore   *int            `json:"AwayScore"`
+	Status      string          `json:"Status"`
 	Stadium     *stadiumDetails `json:"StadiumDetails"`
 }
 

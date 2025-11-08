@@ -1,5 +1,5 @@
 import type { PageLoad } from './$types';
-import { fetchPageData, fetchSeasons, fetchWeeks } from '$lib/api/client';
+import { fetchCurrentWeek, fetchPageData, fetchSeasons, fetchWeeks } from '$lib/api/client';
 
 export const load = (async ({ fetch, url }) => {
 	const seasons = await fetchSeasons(fetch);
@@ -28,6 +28,19 @@ export const load = (async ({ fetch, url }) => {
 		const parsed = Number.parseInt(weekParam, 10);
 		if (!Number.isNaN(parsed) && parsed > 0) {
 			selectedWeekNumber = parsed;
+		}
+	} else {
+		try {
+			const currentWeek = await fetchCurrentWeek(fetch, selectedSeasonId);
+			if (
+				currentWeek != null &&
+				weeks.some((week) => week.number === currentWeek) &&
+				currentWeek !== selectedWeekNumber
+			) {
+				selectedWeekNumber = currentWeek;
+			}
+		} catch (error) {
+			console.error('Unable to load current week, falling back to default week.', error);
 		}
 	}
 
