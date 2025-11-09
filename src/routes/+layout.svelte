@@ -1,19 +1,36 @@
 <script lang="ts">
-	import '../app.css';
-	import favicon from '$lib/assets/favicon.svg';
-	import gunner from '$lib/assets/gunner.ico';
-	import { page } from '$app/stores';
+import '../app.css';
+import favicon from '$lib/assets/favicon.svg';
+import gunner from '$lib/assets/gunner.ico';
+import { page } from '$app/stores';
+import { goto } from '$app/navigation';
+import { ensureCommissionerAccess } from '$lib/commissionerGate';
 
 	const props = $props();
 	const { children } = props;
 
 	const links = [
-		{ href: '/', label: 'Home' },
-		{ href: '/picks', label: 'Picks' }
+		{ href: '/', label: 'Home', requiresCommissioner: false },
+		{ href: '/picks', label: 'Picks', requiresCommissioner: true }
 	];
 
 	const activePath = $derived($page.url.pathname);
 	const currentYear = new Date().getFullYear();
+
+	function navClass(isActive: boolean) {
+		return `rounded-full px-4 py-2 font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 ${
+			isActive
+				? 'bg-emerald-500 text-emerald-950 shadow-lg shadow-emerald-900/40'
+				: 'text-slate-200 hover:bg-slate-800/80 hover:text-emerald-300'
+		}`;
+	}
+
+	function handleNav(link: (typeof links)[number]) {
+		if (link.requiresCommissioner && !ensureCommissionerAccess()) {
+			return;
+		}
+		goto(link.href);
+	}
 </script>
 
 <svelte:head>
@@ -30,13 +47,24 @@
 			<div class="flex items-center gap-2 text-sm font-medium">
 				{#each links as link}
 					{@const isActive = activePath === link.href}
-					<a
-						href={link.href}
-						class={`rounded-full px-4 py-2 font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 ${isActive ? 'bg-emerald-500 text-emerald-950 shadow-lg shadow-emerald-900/40' : 'text-slate-200 hover:bg-slate-800/80 hover:text-emerald-300'}`}
-						aria-current={isActive ? 'page' : undefined}
-					>
-						{link.label}
-					</a>
+					{#if link.requiresCommissioner}
+						<button
+							type="button"
+							class={navClass(isActive)}
+							onclick={() => handleNav(link)}
+							aria-current={isActive ? 'page' : undefined}
+						>
+							{link.label}
+						</button>
+					{:else}
+						<a
+							href={link.href}
+							class={navClass(isActive)}
+							aria-current={isActive ? 'page' : undefined}
+						>
+							{link.label}
+						</a>
+					{/if}
 				{/each}
 			</div>
 		</nav>
