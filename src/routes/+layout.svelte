@@ -42,7 +42,7 @@
 	<header class="border-b border-slate-800 bg-slate-900">
 		<nav class="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
 			<a href="/" class="flex items-center gap-2 text-lg font-semibold tracking-tight text-white">
-				<img src={gunner} alt="" class="h-6 w-6 -translate-y-2 scale-150 rounded-[50%]" />
+				<img src={gunner} alt="" class="h-6 w-6 -translate-y-0.3 rounded-[50%]" />
 				Big Dawg Pool
 			</a>
 			<div class="flex items-center gap-2 text-sm font-medium">
@@ -78,7 +78,7 @@
 	<footer class="border-t border-slate-800 bg-slate-900 py-6 text-xs text-slate-300">
 		<div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4">
 			<span class="flex items-center gap-2">
-				<img src={pugly} alt="" class="h-6 w-6 rounded-[50%] opacity-60" />
+				<img src={pugly} alt="" class="h-6 w-6 rounded-[50%]" />
 				Big Dawg Pool · Est. 2024 &mdash; {currentYear}
 			</span>
 			<span>Powered by SvelteKit · Supabase · SportsData.io</span>

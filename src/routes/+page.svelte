@@ -4,6 +4,7 @@
 	import { formatRecord } from '$lib/utils/records';
 	import { ensureCommissionerAccess } from '$lib/commissionerGate';
 	import pugly from '$lib/assets/pugly.ico';
+	import miller from '$lib/assets/miller.ico';
 
 	const props = $props();
 	const data = $derived(props.data as PageData);
@@ -581,7 +582,10 @@
 		<aside
 			class="space-y-4 rounded-3xl border border-slate-700 bg-slate-900/80 p-6 shadow-lg shadow-black/40"
 		>
-			<h2 class="text-lg font-semibold text-white">Week {activeWeek.number} Snapshot</h2>
+			<h2 class="flex items-center gap-2 text-lg font-semibold text-white">
+				<img src={miller} alt="" class="h-5 w-5 rounded-[50%]" />
+				Week {activeWeek.number} Snapshot
+			</h2>
 			<ul class="space-y-3 text-sm text-slate-200">
 				<li class="flex items-center justify-between">
 					<span>Games on the slate</span>
