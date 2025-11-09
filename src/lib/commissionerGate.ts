@@ -20,7 +20,9 @@ export function ensureCommissionerAccess(): boolean {
 	if (isCommissionerVerified()) {
 		return true;
 	}
-	const response = win.prompt('Commissioner check: type "GoDawgs" to open picks.');
+	const response = win.prompt(
+		'Commissioner check: Please enter the super secret passcode to prove you are Brad.'
+	);
 	if (!response) {
 		return false;
 	}
