@@ -1,10 +1,11 @@
 <script lang="ts">
-import '../app.css';
-import favicon from '$lib/assets/favicon.svg';
-import gunner from '$lib/assets/gunner.ico';
-import { page } from '$app/stores';
-import { goto } from '$app/navigation';
-import { ensureCommissionerAccess } from '$lib/commissionerGate';
+	import '../app.css';
+	import favicon from '$lib/assets/favicon.svg';
+	import gunner from '$lib/assets/gunner.ico';
+	import pugly from '$lib/assets/pugly.ico';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import { ensureCommissionerAccess } from '$lib/commissionerGate';
 
 	const props = $props();
 	const { children } = props;
@@ -41,7 +42,7 @@ import { ensureCommissionerAccess } from '$lib/commissionerGate';
 	<header class="border-b border-slate-800 bg-slate-900">
 		<nav class="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
 			<a href="/" class="flex items-center gap-2 text-lg font-semibold tracking-tight text-white">
-				<img src={gunner} alt="" class="h-6 w-6 rounded-[50%]" />
+				<img src={gunner} alt="" class="h-6 w-6 -translate-y-2 scale-150 rounded-[50%]" />
 				Big Dawg Pool
 			</a>
 			<div class="flex items-center gap-2 text-sm font-medium">
@@ -76,7 +77,10 @@ import { ensureCommissionerAccess } from '$lib/commissionerGate';
 
 	<footer class="border-t border-slate-800 bg-slate-900 py-6 text-xs text-slate-300">
 		<div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4">
-			<span>Big Dawg Pool · Est. 2024 &mdash; {currentYear}</span>
+			<span class="flex items-center gap-2">
+				<img src={pugly} alt="" class="h-6 w-6 rounded-[50%] opacity-60" />
+				Big Dawg Pool · Est. 2024 &mdash; {currentYear}
+			</span>
 			<span>Powered by SvelteKit · Supabase · SportsData.io</span>
 		</div>
 	</footer>

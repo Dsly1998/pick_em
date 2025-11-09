@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
-import { formatRecord } from '$lib/utils/records';
-import { ensureCommissionerAccess } from '$lib/commissionerGate';
+	import { formatRecord } from '$lib/utils/records';
+	import { ensureCommissionerAccess } from '$lib/commissionerGate';
+	import pugly from '$lib/assets/pugly.ico';
 
 	const props = $props();
 	const data = $derived(props.data as PageData);
@@ -15,8 +16,8 @@ import { ensureCommissionerAccess } from '$lib/commissionerGate';
 	const games = $derived(data.games ?? []);
 	const gamesView = $derived(games.map((game) => enrichGame(game)));
 
-const STORAGE_SEASON_KEY = 'bdp:selectedSeason';
-const STORAGE_WEEK_KEY = 'bdp:selectedWeek';
+	const STORAGE_SEASON_KEY = 'bdp:selectedSeason';
+	const STORAGE_WEEK_KEY = 'bdp:selectedWeek';
 
 	const initialSeasonId = data.selectedSeasonId ?? seasons[0]?.id ?? '';
 	const initialWeekNumber = data.selectedWeekNumber ?? activeWeek?.number ?? weeks[0]?.number ?? 1;
@@ -60,7 +61,6 @@ const STORAGE_WEEK_KEY = 'bdp:selectedWeek';
 	let weekStatus = $state('Upcoming');
 	let selectedWeekNumber = $state(initialWeekNumber);
 	let picksPageHref = $state('/picks');
-
 
 	$effect(() => {
 		if (gamesView.some((game) => gameInProgress(game))) {
@@ -326,12 +326,12 @@ const STORAGE_WEEK_KEY = 'bdp:selectedWeek';
 		return 'pending';
 	}
 
-function goToPicks() {
-	if (!ensureCommissionerAccess()) {
-		return;
+	function goToPicks() {
+		if (!ensureCommissionerAccess()) {
+			return;
+		}
+		goto(picksPageHref, { keepFocus: true, noscroll: false });
 	}
-	goto(picksPageHref, { keepFocus: true, noscroll: false });
-}
 </script>
 
 {#if !season || !activeWeek}
@@ -559,13 +559,13 @@ function goToPicks() {
 					<strong class="text-white">{pendingPickCount}</strong>
 				</li>
 			</ul>
-		<button
-			type="button"
-			onclick={goToPicks}
-			class="inline-flex w-full justify-center rounded-full border border-emerald-500/40 bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 shadow-lg shadow-emerald-900/50 transition hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
-		>
-			Jump to picks
-		</button>
+			<button
+				type="button"
+				onclick={goToPicks}
+				class="inline-flex w-full justify-center rounded-full border border-emerald-500/40 bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 shadow-lg shadow-emerald-900/50 transition hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+			>
+				Jump to picks
+			</button>
 		</aside>
 	</section>
 
@@ -594,13 +594,13 @@ function goToPicks() {
 						<span>{member.tieBreakers[activeWeek.number] ?? '—'} pts</span>
 					</div>
 				</div>
-			<button
-				type="button"
-				onclick={goToPicks}
-				class="inline-flex w-full justify-center rounded-full border border-emerald-500/40 bg-emerald-500 px-3 py-2 text-sm font-semibold text-emerald-950 shadow hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
-			>
-				Update picks
-			</button>
+				<button
+					type="button"
+					onclick={goToPicks}
+					class="inline-flex w-full justify-center rounded-full border border-emerald-500/40 bg-emerald-500 px-3 py-2 text-sm font-semibold text-emerald-950 shadow hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+				>
+					Update picks
+				</button>
 			</div>
 		{/each}
 	</section>
