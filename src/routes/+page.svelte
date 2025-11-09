@@ -27,6 +27,14 @@
 	let selectedWeekValue = $state(String(initialWeekNumber));
 	let restoredFromStorage = $state(false);
 
+	const memberDisplayOrder = ['brad', 'dad', 'mom', 'danielle', 'lauren', 'dallin'];
+	function displayIndex(member: typeof members[number]) {
+		const index = memberDisplayOrder.findIndex((name) =>
+			name === member.name.toLowerCase().trim()
+		);
+		return index === -1 ? memberDisplayOrder.length : index;
+	}
+
 	const sortedMembers = $derived(
 		[...members].sort((a, b) => {
 			if (b.weeksWon !== a.weeksWon) {
@@ -37,6 +45,14 @@
 				return winDiff;
 			}
 			return a.seasonRecord.losses - b.seasonRecord.losses;
+		})
+	);
+
+	const gridMembers = $derived(
+		[...members].sort((a, b) => {
+			const orderDiff = displayIndex(a) - displayIndex(b);
+			if (orderDiff !== 0) return orderDiff;
+			return a.name.localeCompare(b.name);
 		})
 	);
 
@@ -57,11 +73,26 @@
 	);
 	const allPicksSubmitted = $derived(
 		gamesView.length > 0 &&
-			members.length > 0 &&
-			gamesView.every((game) =>
-				members.every((member) => game.picks.some((pick) => pick.memberId === member.id))
-			)
+		members.length > 0 &&
+		gamesView.every((game) =>
+			members.every((member) => game.picks.some((pick) => pick.memberId === member.id))
+		)
 	);
+
+	function memberWeekRecord(memberId: string) {
+		let wins = 0;
+		let losses = 0;
+		for (const game of gamesView) {
+			const pick = game.picks?.find((entry) => entry.memberId === memberId) ?? null;
+			const outcome = pickOutcome(game, pick);
+			if (outcome === 'win') {
+				wins += 1;
+			} else if (outcome === 'loss') {
+				losses += 1;
+			}
+		}
+		return { wins, losses };
+	}
 
 	const commissionerName = 'Brad';
 
@@ -494,37 +525,46 @@
 					class="family-grid inline-grid min-w-full gap-1"
 					style={`--family-grid-members: ${homeGridMemberCount};`}
 				>
-					<div class="family-grid__header rounded-md bg-slate-800/90 text-slate-100 uppercase">
-						Game
-					</div>
-					{#each members as member (member.id)}
-						<div
-							class="family-grid__header rounded-md bg-slate-800/90 text-center text-slate-100 uppercase"
-						>
-							{member.name}
-						</div>
-					{/each}
-
-					{#each gamesView as game (game.id)}
-						<div
-							class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100"
-						>
-							{teamNameOnly(game, 'home')} vs {teamNameOnly(game, 'away')}
-						</div>
-						{#each members as member (member.id)}
-							{@const memberPick = game.picks.find((entry) => entry.memberId === member.id) ?? null}
-							{@const outcome = pickOutcome(game, memberPick ?? null)}
-							<div class={cellClasses(outcome, !!memberPick)}>
-								{#if memberPick}
-									{teamLabel(game, memberPick.chosenSide)}
-								{:else}
-									No pick yet
-								{/if}
-							</div>
-						{/each}
-					{/each}
+				<div class="family-grid__header rounded-md bg-slate-800/90 text-slate-100 uppercase">
+					Game
 				</div>
+				{#each gridMembers as member (member.id)}
+					<div
+						class="family-grid__header rounded-md bg-slate-800/90 text-center text-slate-100 uppercase"
+					>
+						{member.name}
+					</div>
+				{/each}
+
+				{#each gamesView as game (game.id)}
+					<div
+						class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100"
+					>
+						{teamNameOnly(game, 'home')} vs {teamNameOnly(game, 'away')}
+					</div>
+					{#each gridMembers as member (member.id)}
+						{@const memberPick = game.picks.find((entry) => entry.memberId === member.id) ?? null}
+						{@const outcome = pickOutcome(game, memberPick ?? null)}
+						<div class={cellClasses(outcome, !!memberPick)}>
+							{#if memberPick}
+								{teamLabel(game, memberPick.chosenSide)}
+							{:else}
+								No pick yet
+							{/if}
+						</div>
+					{/each}
+				{/each}
+				<div class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100 font-semibold">
+					Score
+				</div>
+				{#each gridMembers as member (member.id)}
+					{@const record = memberWeekRecord(member.id)}
+					<div class="family-grid__cell rounded-md border border-emerald-500/30 bg-emerald-500/10 text-center font-semibold text-emerald-200">
+						{record.wins}-{record.losses}
+					</div>
+				{/each}
 			</div>
+		</div>
 		{:else}
 			<div
 				class="rounded-2xl border border-dashed border-slate-700 bg-slate-950/60 p-8 text-center"
