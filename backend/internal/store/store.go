@@ -880,9 +880,25 @@ func parseOptionalTime(value *string) *time.Time {
 	if value == nil || strings.TrimSpace(*value) == "" {
 		return nil
 	}
-	parsed, err := time.Parse(time.RFC3339, *value)
-	if err != nil {
-		return nil
+	trimmed := strings.TrimSpace(*value)
+	layouts := []struct {
+		layout string
+		useUTC bool
+	}{
+		{time.RFC3339, false},
+		{"2006-01-02T15:04:05", true},
 	}
-	return &parsed
+	for _, candidate := range layouts {
+		var parsed time.Time
+		var err error
+		if candidate.useUTC {
+			parsed, err = time.ParseInLocation(candidate.layout, trimmed, time.UTC)
+		} else {
+			parsed, err = time.Parse(candidate.layout, trimmed)
+		}
+		if err == nil {
+			return &parsed
+		}
+	}
+	return nil
 }

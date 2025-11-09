@@ -90,7 +90,7 @@
 	});
 
 	$effect(() => {
-		gamesView = games.map((game) => prepareGame(game));
+		gamesView = sortGamesByKickoff(games.map((game) => prepareGame(game)));
 	});
 
 	const selectedMember = $derived(
@@ -326,6 +326,34 @@
 				};
 			})
 		};
+	}
+
+	function kickoffTimeValue(game: Game): number | null {
+		if (!game.kickoff) {
+			return null;
+		}
+		const timestamp = Date.parse(game.kickoff);
+		return Number.isNaN(timestamp) ? null : timestamp;
+	}
+
+	function sortGamesByKickoff(list: Game[]) {
+		return list
+			.map((game, index) => ({ game, index }))
+			.sort((a, b) => {
+				const aValue = kickoffTimeValue(a.game);
+				const bValue = kickoffTimeValue(b.game);
+				if (aValue != null && bValue != null) {
+					return aValue - bValue;
+				}
+				if (aValue != null) {
+					return -1;
+				}
+				if (bValue != null) {
+					return 1;
+				}
+				return a.index - b.index;
+			})
+			.map((entry) => entry.game);
 	}
 
 	function gameIsFinal(game: Game) {

@@ -14,7 +14,7 @@
 	const activeWeek = $derived(data.activeWeek ?? null);
 	const members = $derived(data.members ?? []);
 	const games = $derived(data.games ?? []);
-	const gamesView = $derived(games.map((game) => enrichGame(game)));
+	const gamesView = $derived(sortGamesByKickoff(games.map((game) => enrichGame(game))));
 
 	const STORAGE_SEASON_KEY = 'bdp:selectedSeason';
 	const STORAGE_WEEK_KEY = 'bdp:selectedWeek';
@@ -324,6 +324,34 @@
 			return winner === side ? 'correct' : 'incorrect';
 		}
 		return 'pending';
+	}
+
+	function kickoffTimeValue(game: GameType): number | null {
+		if (!game.kickoff) {
+			return null;
+		}
+		const timestamp = Date.parse(game.kickoff);
+		return Number.isNaN(timestamp) ? null : timestamp;
+	}
+
+	function sortGamesByKickoff(list: GameType[]) {
+		return list
+			.map((game, index) => ({ game, index }))
+			.sort((a, b) => {
+				const aValue = kickoffTimeValue(a.game);
+				const bValue = kickoffTimeValue(b.game);
+				if (aValue != null && bValue != null) {
+					return aValue - bValue;
+				}
+				if (aValue != null) {
+					return -1;
+				}
+				if (bValue != null) {
+					return 1;
+				}
+				return a.index - b.index;
+			})
+			.map((entry) => entry.game);
 	}
 
 	function goToPicks() {
