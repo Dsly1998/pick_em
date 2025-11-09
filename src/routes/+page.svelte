@@ -94,6 +94,59 @@
 		return { wins, losses };
 	}
 
+	function evaluateContention() {
+		const membersToCheck = gridMembers;
+		if (membersToCheck.length === 0) {
+			return {};
+		}
+		const currentWins: Record<string, number> = {};
+		for (const member of membersToCheck) {
+			currentWins[member.id] = memberWeekRecord(member.id).wins;
+		}
+		const remainingGames = gamesView.filter((game) => !gameIsFinal(game));
+		const canWinMap: Record<string, boolean> = {};
+		for (const member of membersToCheck) {
+			canWinMap[member.id] = false;
+		}
+
+		function dfs(index: number, wins: Record<string, number>) {
+			if (index >= remainingGames.length) {
+				let topScore = -Infinity;
+				for (const member of membersToCheck) {
+					const score = wins[member.id] ?? 0;
+					if (score > topScore) {
+						topScore = score;
+					}
+				}
+				const leaders = membersToCheck.filter((member) => (wins[member.id] ?? 0) === topScore);
+				for (const leader of leaders) {
+					canWinMap[leader.id] = true;
+				}
+				return;
+			}
+
+			const game = remainingGames[index];
+			const outcomes: Array<'home' | 'away'> = ['home', 'away'];
+			for (const winnerSide of outcomes) {
+				const nextWins: Record<string, number> = { ...wins };
+				for (const pick of game.picks ?? []) {
+					if (pick.chosenSide === winnerSide) {
+						nextWins[pick.memberId] = (nextWins[pick.memberId] ?? 0) + 1;
+					}
+				}
+				dfs(index + 1, nextWins);
+				if (membersToCheck.every((member) => canWinMap[member.id])) {
+					return;
+				}
+			}
+		}
+
+		dfs(0, { ...currentWins });
+		return canWinMap;
+	}
+
+	const contentionMap = $derived(evaluateContention());
+
 	const commissionerName = 'Brad';
 
 	let weekStatus = $state('Upcoming');
@@ -563,6 +616,21 @@
 						{record.wins}-{record.losses}
 					</div>
 				{/each}
+				<div class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100 font-semibold">
+					Status
+				</div>
+				{#each gridMembers as member (member.id)}
+					{@const canWin = contentionMap[member.id] ?? false}
+					<div
+						class={`family-grid__cell rounded-md text-center font-semibold ${
+							canWin
+								? 'status-pill status-pill--in'
+								: 'status-pill status-pill--out'
+						}`}
+					>
+						{canWin ? 'In contention' : 'Out'}
+					</div>
+				{/each}
 			</div>
 		</div>
 		{:else}
@@ -854,5 +922,23 @@
 		.family-grid__cell {
 			padding: 0.28rem 0.35rem;
 		}
+	}
+
+	.status-pill {
+		border: 1px solid transparent;
+		border-radius: 0.75rem;
+		padding: 0.2rem 0.4rem;
+	}
+
+	.status-pill--in {
+		background-color: rgba(16, 185, 129, 0.15);
+		border-color: rgba(16, 185, 129, 0.35);
+		color: rgb(209, 250, 229);
+	}
+
+	.status-pill--out {
+		background-color: rgba(248, 113, 113, 0.15);
+		border-color: rgba(248, 113, 113, 0.35);
+		color: rgb(254, 226, 226);
 	}
 </style>
