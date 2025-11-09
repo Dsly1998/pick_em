@@ -434,12 +434,18 @@ func (s *Store) getWeekResult(ctx context.Context, seasonWeekID string) (*models
 	`, seasonWeekID)
 
 	var result models.WeekResult
-	if err := row.Scan(&result.SeasonWeekID, &result.WinnerMemberID, &result.DeclaredByMemberID, &result.Notes, &result.DeclaredAt); err != nil {
+	var winnerMemberID *string
+	var declaredByMemberID *string
+	var notes *string
+	if err := row.Scan(&result.SeasonWeekID, &winnerMemberID, &declaredByMemberID, &notes, &result.DeclaredAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("store: get week result: %w", err)
 	}
+	result.WinnerMemberID = derefString(winnerMemberID)
+	result.DeclaredByMemberID = derefString(declaredByMemberID)
+	result.Notes = derefString(notes)
 	return &result, nil
 }
 
@@ -673,9 +679,15 @@ func (s *Store) DeclareWeekWinner(ctx context.Context, seasonWeekID, winnerMembe
 	row := s.pool.QueryRow(ctx, sql, seasonWeekID, nullIfEmpty(winnerMemberID), nullIfEmpty(declaredByMemberID), notes)
 
 	var result models.WeekResult
-	if err := row.Scan(&result.SeasonWeekID, &result.WinnerMemberID, &result.DeclaredByMemberID, &result.Notes, &result.DeclaredAt); err != nil {
+	var outWinner *string
+	var outDeclaredBy *string
+	var outNotes *string
+	if err := row.Scan(&result.SeasonWeekID, &outWinner, &outDeclaredBy, &outNotes, &result.DeclaredAt); err != nil {
 		return nil, fmt.Errorf("store: declare week winner: %w", err)
 	}
+	result.WinnerMemberID = derefString(outWinner)
+	result.DeclaredByMemberID = derefString(outDeclaredBy)
+	result.Notes = derefString(outNotes)
 
 	return &result, nil
 }
