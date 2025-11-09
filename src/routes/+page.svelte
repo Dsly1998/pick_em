@@ -27,10 +27,16 @@
 	let restoredFromStorage = $state(false);
 
 	const sortedMembers = $derived(
-		[...members].sort(
-			(a, b) =>
-				b.seasonRecord.wins - a.seasonRecord.wins || a.seasonRecord.losses - b.seasonRecord.losses
-		)
+		[...members].sort((a, b) => {
+			if (b.weeksWon !== a.weeksWon) {
+				return b.weeksWon - a.weeksWon;
+			}
+			const winDiff = b.seasonRecord.wins - a.seasonRecord.wins;
+			if (winDiff !== 0) {
+				return winDiff;
+			}
+			return a.seasonRecord.losses - b.seasonRecord.losses;
+		})
 	);
 
 	type GameType = (typeof games)[number];
