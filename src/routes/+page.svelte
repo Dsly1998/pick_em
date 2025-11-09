@@ -266,6 +266,17 @@
 		return team.name ?? (winner === 'home' ? 'Home Team' : 'Away Team');
 	}
 
+	function formatTeamScore(value?: number | null) {
+		if (typeof value === 'number' && Number.isFinite(value)) {
+			return String(value);
+		}
+		return '—';
+	}
+
+	function teamScore(game: GameType, side: 'home' | 'away') {
+		return formatTeamScore(side === 'home' ? game.homeScore : game.awayScore);
+	}
+
 	function pickOutcome(
 		game: GameType,
 		pick: GameType['picks'][number] | null
@@ -692,18 +703,22 @@
 					</div>
 					<div class="space-y-2 text-sm text-slate-100">
 						<div class="flex items-center justify-between rounded-xl bg-slate-900 px-3 py-2">
-							<span class="font-medium text-white">{teamLabel(game, 'home')}</span>
-							<span class="text-xs text-slate-300">Home</span>
+							<div>
+								<span class="font-medium text-white">{teamLabel(game, 'home')}</span>
+								<span class="block text-xs text-slate-400">Home</span>
+							</div>
+							<span class="text-lg font-semibold text-white">{teamScore(game, 'home')}</span>
 						</div>
 						<div class="flex items-center justify-between rounded-xl bg-slate-900 px-3 py-2">
-							<span class="font-medium text-white">{teamLabel(game, 'away')}</span>
-							<span class="text-xs text-slate-300">Away</span>
+							<div>
+								<span class="font-medium text-white">{teamLabel(game, 'away')}</span>
+								<span class="block text-xs text-slate-400">Away</span>
+							</div>
+							<span class="text-lg font-semibold text-white">{teamScore(game, 'away')}</span>
 						</div>
-						{#if game.winner}
-							<p class="text-xs text-emerald-300">
-								Winner: {winnerLabel(game)}
-							</p>
-						{/if}
+						<p class="text-xs text-emerald-300">
+							Winner: {gameIsFinal(game) && game.winner ? winnerLabel(game) : 'TBD'}
+						</p>
 					</div>
 					<p class="text-xs text-slate-400">{game.location ?? 'Venue TBD'}</p>
 				</div>
