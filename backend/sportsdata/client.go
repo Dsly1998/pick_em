@@ -26,6 +26,7 @@ type GameSnapshot struct {
 	HomeScore *int    `json:"homeScore,omitempty"`
 	AwayScore *int    `json:"awayScore,omitempty"`
 	Status    string  `json:"status"`
+	IsClosed  bool    `json:"isClosed"`
 }
 
 // FetchScoresByWeek retrieves minimal game data for the given season/week.
@@ -162,6 +163,7 @@ type scoreResponse struct {
 	HomeScore   *int            `json:"HomeScore"`
 	AwayScore   *int            `json:"AwayScore"`
 	Status      string          `json:"Status"`
+	IsClosed    bool            `json:"IsClosed"`
 	Stadium     *stadiumDetails `json:"StadiumDetails"`
 }
 
@@ -199,6 +201,7 @@ func (s scoreResponse) toSnapshot() GameSnapshot {
 		HomeScore: s.HomeScore,
 		AwayScore: s.AwayScore,
 		Status:    s.Status,
+		IsClosed:  s.IsClosed,
 	}
 }
 

@@ -794,7 +794,7 @@ func (s *Store) SyncWeekFromSnapshots(ctx context.Context, season models.Season,
 			return fmt.Errorf("store: sync week marshal away team: %w", err)
 		}
 
-		status := normalizeGameStatus(snap.Status)
+		status := normalizeGameStatus(snap.Status, snap.IsClosed)
 		winner := ""
 		if status == "final" && snap.HomeScore != nil && snap.AwayScore != nil {
 			if *snap.HomeScore > *snap.AwayScore {
@@ -865,15 +865,21 @@ func (s *Store) SyncWeekFromSnapshots(ctx context.Context, season models.Season,
 	return nil
 }
 
-func normalizeGameStatus(status string) string {
-	switch strings.ToLower(strings.TrimSpace(status)) {
+func normalizeGameStatus(status string, isClosed bool) string {
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	if isClosed {
+		return "final"
+	}
+	switch normalized {
 	case "inprogress", "in-progress", "in progress", "playing":
 		return "in-progress"
 	case "final", "complete", "completed":
 		return "final"
-	default:
-		return "scheduled"
 	}
+	if strings.HasPrefix(normalized, "f/") || strings.HasPrefix(normalized, "f ") || strings.HasPrefix(normalized, "f") {
+		return "final"
+	}
+	return "scheduled"
 }
 
 func parseOptionalTime(value *string) *time.Time {
