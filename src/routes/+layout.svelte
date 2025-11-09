@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import gunner from '$lib/assets/gunner.ico';
 	import { page } from '$app/stores';
 
 	const props = $props();
@@ -23,9 +24,7 @@
 	<header class="border-b border-slate-800 bg-slate-900">
 		<nav class="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
 			<a href="/" class="flex items-center gap-2 text-lg font-semibold tracking-tight text-white">
-				<span
-					class="inline-block h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(74,222,128,0.8)]"
-				></span>
+				<img src={gunner} alt="" class="h-6 w-6 rounded-[50%]" />
 				Big Dawg Pool
 			</a>
 			<div class="flex items-center gap-2 text-sm font-medium">

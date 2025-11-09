@@ -46,6 +46,13 @@
 	const incorrectPickCount = $derived(
 		allPicks.filter((pick) => pick.status === 'incorrect').length
 	);
+	const allPicksSubmitted = $derived(
+		gamesView.length > 0 &&
+		members.length > 0 &&
+		gamesView.every((game) =>
+			members.every((member) => game.picks.some((pick) => pick.memberId === member.id))
+		)
+	);
 
 	const commissionerName = 'Brad';
 
@@ -423,44 +430,54 @@
 				Set Week {activeWeek.number} Picks
 			</a>
 		</div>
-		<div
-			class="w-full overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80 p-2 shadow-inner shadow-black/40"
-		>
+		{#if allPicksSubmitted}
 			<div
-				class="family-grid inline-grid min-w-full gap-1"
-				style={`--family-grid-members: ${homeGridMemberCount};`}
+				class="w-full overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80 p-2 shadow-inner shadow-black/40"
 			>
-				<div class="family-grid__header rounded-md bg-slate-800/90 text-slate-100 uppercase">
-					Game
-				</div>
-				{#each members as member (member.id)}
-					<div
-						class="family-grid__header rounded-md bg-slate-800/90 text-center text-slate-100 uppercase"
-					>
-						{member.name}
-					</div>
-				{/each}
-
-				{#each gamesView as game (game.id)}
-					<div
-						class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100"
-					>
-						{teamNameOnly(game, 'home')} vs {teamNameOnly(game, 'away')}
+				<div
+					class="family-grid inline-grid min-w-full gap-1"
+					style={`--family-grid-members: ${homeGridMemberCount};`}
+				>
+					<div class="family-grid__header rounded-md bg-slate-800/90 text-slate-100 uppercase">
+						Game
 					</div>
 					{#each members as member (member.id)}
-						{@const memberPick = game.picks.find((entry) => entry.memberId === member.id) ?? null}
-						{@const outcome = pickOutcome(game, memberPick ?? null)}
-						<div class={cellClasses(outcome, !!memberPick)}>
-							{#if memberPick}
-								{teamLabel(game, memberPick.chosenSide)}
-							{:else}
-								No pick yet
-							{/if}
+						<div
+							class="family-grid__header rounded-md bg-slate-800/90 text-center text-slate-100 uppercase"
+						>
+							{member.name}
 						</div>
 					{/each}
-				{/each}
+
+					{#each gamesView as game (game.id)}
+						<div
+							class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100"
+						>
+							{teamNameOnly(game, 'home')} vs {teamNameOnly(game, 'away')}
+						</div>
+						{#each members as member (member.id)}
+							{@const memberPick =
+								game.picks.find((entry) => entry.memberId === member.id) ?? null}
+							{@const outcome = pickOutcome(game, memberPick ?? null)}
+							<div class={cellClasses(outcome, !!memberPick)}>
+								{#if memberPick}
+									{teamLabel(game, memberPick.chosenSide)}
+								{:else}
+									No pick yet
+								{/if}
+							</div>
+						{/each}
+					{/each}
+				</div>
 			</div>
-		</div>
+		{:else}
+			<div class="rounded-2xl border border-dashed border-slate-700 bg-slate-950/60 p-8 text-center">
+				<p class="text-lg font-semibold text-white">Waiting on picks…</p>
+				<p class="mt-2 text-sm text-slate-300">
+					The Big Dawg grid unlocks after everyone locks in their picks for the week. Check back soon!
+				</p>
+			</div>
+		{/if}
 	</section>
 
 	<section class="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
