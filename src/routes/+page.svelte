@@ -608,6 +608,14 @@
 					{/each}
 				{/each}
 				<div class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100 font-semibold">
+					Points
+				</div>
+				{#each gridMembers as member (member.id)}
+					<div class="family-grid__cell rounded-md border border-slate-600 bg-slate-900/70 text-center text-slate-100">
+						{member.tieBreakers?.[activeWeek.number] ?? '—'}
+					</div>
+				{/each}
+				<div class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100 font-semibold">
 					Score
 				</div>
 				{#each gridMembers as member (member.id)}
