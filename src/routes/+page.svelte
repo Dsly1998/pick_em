@@ -5,6 +5,7 @@
 	import { ensureCommissionerAccess } from '$lib/commissionerGate';
 	import pugly from '$lib/assets/pugly.ico';
 	import miller from '$lib/assets/miller.ico';
+	import gunner from '$lib/assets/gunner.ico';
 
 	const props = $props();
 	const data = $derived(props.data as PageData);
@@ -28,10 +29,8 @@
 	let restoredFromStorage = $state(false);
 
 	const memberDisplayOrder = ['brad', 'dad', 'mom', 'danielle', 'lauren', 'dallin'];
-	function displayIndex(member: typeof members[number]) {
-		const index = memberDisplayOrder.findIndex((name) =>
-			name === member.name.toLowerCase().trim()
-		);
+	function displayIndex(member: (typeof members)[number]) {
+		const index = memberDisplayOrder.findIndex((name) => name === member.name.toLowerCase().trim());
 		return index === -1 ? memberDisplayOrder.length : index;
 	}
 
@@ -73,10 +72,10 @@
 	);
 	const allPicksSubmitted = $derived(
 		gamesView.length > 0 &&
-		members.length > 0 &&
-		gamesView.every((game) =>
-			members.every((member) => game.picks.some((pick) => pick.memberId === member.id))
-		)
+			members.length > 0 &&
+			gamesView.every((game) =>
+				members.every((member) => game.picks.some((pick) => pick.memberId === member.id))
+			)
 	);
 
 	function memberWeekRecord(memberId: string) {
@@ -146,6 +145,22 @@
 	}
 
 	const contentionMap = $derived(evaluateContention());
+	const contenders = $derived(gridMembers.filter((member) => contentionMap[member.id]));
+	const loneContender = $derived(contenders.length === 1 ? contenders[0] : null);
+
+	function bigDawgIcon(name?: string | null) {
+		const normalized = (name ?? '').toLowerCase().trim();
+		if (normalized === 'brad' || normalized === 'lauren') {
+			return miller;
+		}
+		if (normalized === 'dallin' || normalized === 'danielle') {
+			return pugly;
+		}
+		if (normalized === 'mom' || normalized === 'dad') {
+			return gunner;
+		}
+		return miller;
+	}
 
 	const commissionerName = 'Brad';
 
@@ -578,69 +593,86 @@
 					class="family-grid inline-grid min-w-full gap-1"
 					style={`--family-grid-members: ${homeGridMemberCount};`}
 				>
-				<div class="family-grid__header rounded-md bg-slate-800/90 text-slate-100 uppercase">
-					Game
-				</div>
-				{#each gridMembers as member (member.id)}
-					<div
-						class="family-grid__header rounded-md bg-slate-800/90 text-center text-slate-100 uppercase"
-					>
-						{member.name}
-					</div>
-				{/each}
-
-				{#each gamesView as game (game.id)}
-					<div
-						class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100"
-					>
-						{teamNameOnly(game, 'home')} vs {teamNameOnly(game, 'away')}
+					<div class="family-grid__header rounded-md bg-slate-800/90 text-slate-100 uppercase">
+						Game
 					</div>
 					{#each gridMembers as member (member.id)}
-						{@const memberPick = game.picks.find((entry) => entry.memberId === member.id) ?? null}
-						{@const outcome = pickOutcome(game, memberPick ?? null)}
-						<div class={cellClasses(outcome, !!memberPick)}>
-							{#if memberPick}
-								{teamLabel(game, memberPick.chosenSide)}
+						<div
+							class="family-grid__header rounded-md bg-slate-800/90 text-center text-slate-100 uppercase"
+						>
+							{member.name}
+						</div>
+					{/each}
+
+					{#each gamesView as game (game.id)}
+						<div
+							class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100"
+						>
+							{teamNameOnly(game, 'home')} vs {teamNameOnly(game, 'away')}
+						</div>
+						{#each gridMembers as member (member.id)}
+							{@const memberPick = game.picks.find((entry) => entry.memberId === member.id) ?? null}
+							{@const outcome = pickOutcome(game, memberPick ?? null)}
+							<div class={cellClasses(outcome, !!memberPick)}>
+								{#if memberPick}
+									{teamLabel(game, memberPick.chosenSide)}
+								{:else}
+									No pick yet
+								{/if}
+							</div>
+						{/each}
+					{/each}
+					<div
+						class="family-grid__game rounded-md border border-slate-700 bg-slate-900 font-semibold text-slate-100"
+					>
+						Points
+					</div>
+					{#each gridMembers as member (member.id)}
+						<div
+							class="family-grid__cell rounded-md border border-slate-600 bg-slate-900/70 text-center text-slate-100"
+						>
+							{member.tieBreakers?.[activeWeek.number] ?? '—'}
+						</div>
+					{/each}
+					<div
+						class="family-grid__game rounded-md border border-slate-700 bg-slate-900 font-semibold text-slate-100"
+					>
+						Score
+					</div>
+					{#each gridMembers as member (member.id)}
+						{@const record = memberWeekRecord(member.id)}
+						<div
+							class="family-grid__cell rounded-md border border-emerald-500/30 bg-emerald-500/10 text-center font-semibold text-emerald-200"
+						>
+							{record.wins}-{record.losses}
+						</div>
+					{/each}
+					<div
+						class="family-grid__game rounded-md border border-slate-700 bg-slate-900 font-semibold text-slate-100"
+					>
+						Status
+					</div>
+					{#each gridMembers as member (member.id)}
+						{@const canWin = contentionMap[member.id] ?? false}
+						{@const isLoneDawg = loneContender?.id === member.id}
+						{@const badgeIcon = bigDawgIcon(member.name)}
+						<div
+							class={`family-grid__cell content-center rounded-md text-center font-semibold ${
+								canWin ? 'status-pill status-pill--in' : 'status-pill status-pill--out'
+							}`}
+						>
+							{#if isLoneDawg}
+								<span class="inline-flex items-center justify-center gap-2">
+									<img src={badgeIcon} alt="" class="h-4 w-4 rounded-[50%]" />
+									Big Dawg
+								</span>
 							{:else}
-								No pick yet
+								{canWin ? 'In contention' : 'Out'}
 							{/if}
 						</div>
 					{/each}
-				{/each}
-				<div class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100 font-semibold">
-					Points
 				</div>
-				{#each gridMembers as member (member.id)}
-					<div class="family-grid__cell rounded-md border border-slate-600 bg-slate-900/70 text-center text-slate-100">
-						{member.tieBreakers?.[activeWeek.number] ?? '—'}
-					</div>
-				{/each}
-				<div class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100 font-semibold">
-					Score
-				</div>
-				{#each gridMembers as member (member.id)}
-					{@const record = memberWeekRecord(member.id)}
-					<div class="family-grid__cell rounded-md border border-emerald-500/30 bg-emerald-500/10 text-center font-semibold text-emerald-200">
-						{record.wins}-{record.losses}
-					</div>
-				{/each}
-				<div class="family-grid__game rounded-md border border-slate-700 bg-slate-900 text-slate-100 font-semibold">
-					Status
-				</div>
-				{#each gridMembers as member (member.id)}
-					{@const canWin = contentionMap[member.id] ?? false}
-					<div
-						class={`family-grid__cell rounded-md text-center font-semibold ${
-							canWin
-								? 'status-pill status-pill--in'
-								: 'status-pill status-pill--out'
-						}`}
-					>
-						{canWin ? 'In contention' : 'Out'}
-					</div>
-				{/each}
 			</div>
-		</div>
 		{:else}
 			<div
 				class="rounded-2xl border border-dashed border-slate-700 bg-slate-950/60 p-8 text-center"
